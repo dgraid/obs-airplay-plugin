@@ -28,7 +28,7 @@ Quit OBS first. No sudo. Does not write into `/Applications/OBS.app`.
 1. OBS → Sources → **+** → **AirPlay Receiver**
 2. Set receiver name (default `OBS AirPlay`)
 3. On iPhone: Control Center → Screen Mirroring → that name
-4. Video + audio should appear on the source
+4. Video + audio should appear on the source. Audio pad defaults to **−6 dB** (source properties). iPhone volume buttons do not change capture level — use this pad and the OBS mixer.
 
 Killing the helper must not crash OBS; the plugin restarts it with backoff if “Restart helper on crash” is on.
 

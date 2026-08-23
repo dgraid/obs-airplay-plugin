@@ -219,7 +219,7 @@ struct Source {
   std::chrono::steady_clock::time_point last_start;
   int restarts = 0;
   std::vector<uint8_t> frame;
-  std::vector<uint8_t> pcm;
+  std::vector<float> pcm;
 
   void close_fds() {
     if (conn_fd >= 0)
@@ -410,12 +410,11 @@ struct Source {
       return;
     const float scale = audio_gain_lin.load(std::memory_order_relaxed) * (1.0f / 32768.0f);
     const auto *in = reinterpret_cast<const int16_t *>(bytes.data());
-    pcm.resize(n * sizeof(float));
-    auto *out = reinterpret_cast<float *>(pcm.data());
+    pcm.resize(n);
     for (size_t i = 0; i < n; ++i)
-      out[i] = (float)in[i] * scale;
+      pcm[i] = (float)in[i] * scale;
     obs_source_audio a{};
-    a.data[0] = pcm.data();
+    a.data[0] = reinterpret_cast<uint8_t *>(pcm.data());
     a.frames = (uint32_t)(n / ch);
     a.speakers = ch >= 2 ? SPEAKERS_STEREO : SPEAKERS_MONO;
     a.samples_per_sec = h.sample_rate;

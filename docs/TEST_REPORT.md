@@ -13,7 +13,8 @@ Date: 2026-08-23. Host: macOS 26.6 arm64, OBS 32.2.2.
 | 6b | Create/delete source repeatedly | **BLOCKED** | needs GUI (or obs-websocket). Do **not** invent a pass. |
 | 7 | iPhone sees receiver | **PASS** | user picked `OBS AirPlay` in Control Center (then handshake crashed; that crash is fixed) |
 | 8 | First connection video | **BLOCKED** | GET `/info` now 200 locally (helper pid 33914, port 59671, no SIGSEGV). Need iPhone Screen Mirroring retry for a frame in OBS. |
-| 9 | Audio in mixer | **BLOCKED** | needs 8 (iPhone session) |
+| 9 | Audio in mixer | **BLOCKED** | needs 8 (iPhone session) + OBS restart after pad build |
+| 9b | Audio pad −6 dB: int16 full-scale → float ≈ 0.501 | **PASS** | `audio_gain_lin_from_db(-6)` → 0.501187 |
 | 10 | Rotate / resolution change | **BLOCKED** | needs 8 |
 | 11 | Disconnect/reconnect ≥20 | **BLOCKED** | needs 8 |
 | 12 | Wi-Fi toggle | **BLOCKED** | needs 8 |

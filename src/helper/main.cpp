@@ -138,7 +138,10 @@ static void video_resume(void *) {}
 static void conn_feedback(void *) {}
 static void video_reset(void *, reset_type_t) {}
 static double audio_set_client_volume(void *) { return 0.0; }
-static void audio_set_volume(void *, float) {}
+static void audio_set_volume(void *, float volume) {
+  // Screen Mirroring: iPhone hardware volume is not capture level. OBS pad + mixer.
+  fprintf(stderr, "[helper] SET_PARAMETER volume ignored: %f dB\n", volume);
+}
 static void audio_set_metadata(void *, const void *, int) {}
 static void audio_set_coverart(void *, const void *, int) {}
 static void audio_stop_coverart_rendering(void *) {}
