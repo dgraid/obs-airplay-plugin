@@ -1,5 +1,10 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (disconnect morph)
+
+- Disconnect/pause fade continues OBS timestamps from the last live frame (~60 Hz) and ignores video after leaving Streaming. Stop Mirroring was jumping because stub frames used a different clock and late live packets restarted the transition.
+- Breaking: no.
+
 ## 2026-08-23 (transparent letterbox)
 
 - Letterbox / morph margins are alpha 0 (`OBS_SOURCE_FRAME_LINEAR_ALPHA`). Phone/stub pixels stay opaque. Idle waiting screen is still a full-canvas graphic.

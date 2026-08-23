@@ -332,6 +332,7 @@ struct Source {
   bool fade_on = false;
   uint64_t fade_t0 = 0;
   uint64_t last_emit_ns = 0;
+  uint64_t last_out_ts = 0;
   std::vector<float> pcm;
 
   void close_fds() {
@@ -470,9 +471,12 @@ struct Source {
     f.width = width;
     f.height = height;
     f.format = VIDEO_FORMAT_BGRA;
-    f.timestamp = ts;
     f.full_range = true;
     f.flags = OBS_SOURCE_FRAME_LINEAR_ALPHA;
+    if (ts == 0 || ts <= last_out_ts)
+      ts = last_out_ts + 16666667ull;
+    last_out_ts = ts;
+    f.timestamp = ts;
     obs_source_output_video(source, &f);
     last_emit_ns = os_gettime_ns();
   }
@@ -561,6 +565,8 @@ struct Source {
     canvas_size(max_w, max_h, cw, ch);
     const StageRect nr = contain_rect(sw, sh, cw, ch);
     std::lock_guard<std::mutex> lock(mu);
+    if (kind == Visual::Live && !state_is_live(last_state.load()))
+      return;
     begin_transition_locked(kind, nr);
     dest.assign(src, src + (size_t)sw * sh * 4);
     dest_w = sw;
@@ -577,7 +583,7 @@ struct Source {
     auto pixels = render_idle_stub(cw, ch, name, stub_copy());
     if (pixels.empty())
       return;
-    present_source(pixels.data(), cw, ch, os_gettime_ns(), Visual::Idle);
+    present_source(pixels.data(), cw, ch, 0, Visual::Idle);
   }
 
   void push_pause_stub() {
@@ -594,7 +600,7 @@ struct Source {
     auto pixels = render_pause_stub(sw, sh, pause_stub_copy());
     if (pixels.empty())
       return;
-    present_source(pixels.data(), sw, sh, os_gettime_ns(), Visual::Pause);
+    present_source(pixels.data(), sw, sh, 0, Visual::Pause);
   }
 
   void show_placeholder() {
@@ -619,6 +625,8 @@ struct Source {
   }
 
   void output_video(const Header &h, const std::vector<uint8_t> &bgra) {
+    if (!state_is_live(last_state.load()))
+      return;
     if (h.width == 0 || h.height == 0)
       return;
     if (bgra.size() < (size_t)h.width * h.height * 4)
@@ -798,9 +806,13 @@ struct Source {
         cancel_fade_locked();
         rebuild = true;
       } else if (fade_on) {
-        const uint64_t now = os_gettime_ns();
-        if (last_emit_ns == 0 || now - last_emit_ns >= 8000000ull)
+        if (last_state.load() != (uint32_t)State::Streaming)
           pump = true;
+        else {
+          const uint64_t now = os_gettime_ns();
+          if (last_emit_ns == 0 || now - last_emit_ns >= 8000000ull)
+            pump = true;
+        }
       }
     }
     if (rebuild) {
@@ -812,14 +824,14 @@ struct Source {
         height = ch;
         dest_rect = contain_rect(dest_w, dest_h, cw, ch);
         from_rect = dest_rect;
-        composite_and_emit_locked(os_gettime_ns());
+        composite_and_emit_locked(0);
       }
       return;
     }
     if (pump) {
       std::lock_guard<std::mutex> lock(mu);
       if (fade_on)
-        composite_and_emit_locked(os_gettime_ns());
+        composite_and_emit_locked(0);
     }
   }
 };
