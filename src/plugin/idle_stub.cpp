@@ -165,6 +165,25 @@ void draw_airplay_audio_icon(CGContextRef ctx, CGRect r, CGColorRef color) {
   CGContextRestoreGState(ctx);
 }
 
+void draw_lock_icon(CGContextRef ctx, CGRect r, CGColorRef color) {
+  begin_svg(ctx, r);
+  CGContextSetStrokeColorWithColor(ctx, color);
+  CGContextSetLineWidth(ctx, 7);
+  CGContextSetLineCap(ctx, kCGLineCapRound);
+  CGContextSetLineJoin(ctx, kCGLineJoinRound);
+  CGPathRef body = CGPathCreateWithRoundedRect(CGRectMake(14, 46, 72, 44), 10, 10, nullptr);
+  CGContextAddPath(ctx, body);
+  CGContextStrokePath(ctx);
+  CGPathRelease(body);
+  CGContextBeginPath(ctx);
+  CGContextMoveToPoint(ctx, 32, 46);
+  CGContextAddLineToPoint(ctx, 32, 30);
+  CGContextAddArc(ctx, 50, 30, 18, (CGFloat)M_PI, 0, 0);
+  CGContextAddLineToPoint(ctx, 68, 46);
+  CGContextStrokePath(ctx);
+  CGContextRestoreGState(ctx);
+}
+
 void paint_idle_bg(CGContextRef ctx, CGFloat w, CGFloat h, CGFloat ox, CGFloat oy, CGFloat lw, CGFloat lh) {
   CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
   CGFloat linear[] = {0.086, 0.086, 0.106, 1, 0.031, 0.031, 0.039, 1};
@@ -367,30 +386,6 @@ std::vector<uint8_t> render_idle_stub(uint32_t w, uint32_t h, const std::string 
   return out;
 }
 
-void draw_lock_icon(CGContextRef ctx, CGRect r, CGColorRef color) {
-  CGContextSaveGState(ctx);
-  CGContextSetStrokeColorWithColor(ctx, color);
-  CGFloat lw = std::max<CGFloat>(2.0, r.size.width / 12.0);
-  CGContextSetLineWidth(ctx, lw);
-  CGContextSetLineCap(ctx, kCGLineCapRound);
-  CGFloat body_h = r.size.height * 0.52;
-  CGRect body = CGRectMake(r.origin.x, r.origin.y, r.size.width, body_h);
-  CGFloat rad = std::max<CGFloat>(3.0, r.size.width / 8.0);
-  CGPathRef body_p = CGPathCreateWithRoundedRect(body, rad, rad, nullptr);
-  CGContextAddPath(ctx, body_p);
-  CGContextStrokePath(ctx);
-  CGPathRelease(body_p);
-  CGFloat shackle_w = r.size.width * 0.56;
-  CGFloat shackle_x = r.origin.x + (r.size.width - shackle_w) * 0.5;
-  CGFloat shackle_y = r.origin.y + body_h - lw * 0.5;
-  CGFloat shackle_h = r.size.height - body_h;
-  CGContextBeginPath(ctx);
-  CGContextAddArc(ctx, shackle_x + shackle_w * 0.5, shackle_y + shackle_h * 0.15, shackle_w * 0.5, 0,
-                  (CGFloat)M_PI, 0);
-  CGContextStrokePath(ctx);
-  CGContextRestoreGState(ctx);
-}
-
 std::vector<uint8_t> render_pause_stub(uint32_t w, uint32_t h, const PauseStubCopy &copy) {
   if (w < 16 || h < 16)
     return {};
@@ -404,51 +399,80 @@ std::vector<uint8_t> render_pause_stub(uint32_t w, uint32_t h, const PauseStubCo
   if (!ctx)
     return out;
 
-  CGContextSetRGBFillColor(ctx, 0.09, 0.09, 0.11, 1);
-  CGContextFillRect(ctx, CGRectMake(0, 0, w, h));
-
+  const CGFloat canvas_w = (CGFloat)w;
   const CGFloat canvas_h = (CGFloat)h;
-  const CGFloat s = std::max<CGFloat>(0.7, std::min((CGFloat)w, (CGFloat)h) / 390.0f);
-  const CGFloat title_sz = 22 * s;
-  const CGFloat body_sz = 16 * s;
-  const CGFloat block_w = std::min((CGFloat)w * 0.78f, 340 * s);
-  const CGFloat x = ((CGFloat)w - block_w) * 0.5f;
-  const CGFloat lock_s = 36 * s;
+  const bool tall = canvas_w < canvas_h * 1.25f;
+  const CGFloat s = tall ? std::min(canvas_w / 720.0f, canvas_h / 1280.0f)
+                         : std::min(canvas_w / 1920.0f, canvas_h / 1080.0f);
+  const CGFloat ts = 1.35f;
+  paint_idle_bg(ctx, canvas_w, canvas_h, 0, 0, canvas_w, canvas_h);
+
+  Type t{ui_font(84 * ts * s, true), ui_font(22 * ts * s, true), ui_font(22 * ts * s, true),
+         ui_font(14 * ts * s, false), ui_font(13 * ts * s, true)};
+  CGColorRef white = CGColorCreateGenericRGB(1, 1, 1, 1);
+  CGColorRef fg70 = CGColorCreateGenericRGB(1, 1, 1, 0.70);
+  CGColorRef card_fill = CGColorCreateGenericRGB(0.235, 0.235, 0.263, 0.55);
+  CGColorRef card_hi = CGColorCreateGenericRGB(1, 1, 1, 0.06);
+
   const CTTextAlignment center = kCTTextAlignmentCenter;
+  const CGFloat kern = -0.025f * 84 * ts * s;
+  const CGFloat lock_s = (tall ? 96.0f : 88.0f) * s;
+  const CGFloat brand_gap = 24 * s;
+  const CGFloat pad = 40 * s;
+  const CGFloat rad = 22 * s;
+  const CGFloat margin = (tall ? 80.0f : 90.0f) * s;
 
-  CTFontRef title_f = ui_font(title_sz, true);
-  CTFontRef body_f = ui_font(body_sz, false);
-  CGColorRef white = CGColorCreateGenericRGB(0.93, 0.93, 0.94, 1);
-  CGColorRef muted = CGColorCreateGenericRGB(0.62, 0.62, 0.66, 1);
-
-  auto measure = [&](const std::string &txt, CTFontRef f) -> CGFloat {
-    if (txt.empty())
-      return 0;
-    CFAttributedStringRef attr = make_attr(txt, f, white, center);
-    CTFramesetterRef fs = CTFramesetterCreateWithAttributedString(attr);
-    CGSize sz = CTFramesetterSuggestFrameSizeWithConstraints(fs, CFRangeMake(0, 0), nullptr,
-                                                             CGSizeMake(block_w, CGFLOAT_MAX), nullptr);
-    CFRelease(fs);
-    CFRelease(attr);
-    return std::ceil(sz.height) + 1;
+  auto brand_h = [&](CGFloat col_w) -> CGFloat {
+    return lock_s + brand_gap + measure_text("AirPlay", t.title, col_w, center, kern) + brand_gap +
+           measure_text(copy.header, t.sub, col_w, center);
+  };
+  auto draw_brand = [&](CGFloat x, CGFloat y, CGFloat col_w) {
+    draw_lock_icon(ctx, CGRectMake(x + (col_w - lock_s) * 0.5f, canvas_h - y - lock_s, lock_s, lock_s),
+                   white);
+    y += lock_s + brand_gap;
+    y += draw_wrapped(ctx, "AirPlay", t.title, white, x, y, canvas_h, col_w, center, kern) + brand_gap;
+    draw_wrapped(ctx, copy.header, t.sub, fg70, x, y, canvas_h, col_w, center);
+  };
+  auto card_h = [&](CGFloat inner_w) { return pad * 2 + measure_text(copy.body, t.value, inner_w, center); };
+  auto draw_card = [&](CGFloat x, CGFloat y, CGFloat cw, CGFloat ch, CGFloat inner_w) {
+    fill_round_rect(ctx, CGRectMake(x, canvas_h - y - ch, cw, ch), rad, card_fill, nullptr, 0);
+    fill_round_rect(ctx, CGRectMake(x, canvas_h - y - 1, cw, 1), 0, card_hi, nullptr, 0);
+    draw_wrapped(ctx, copy.body, t.value, white, x + pad, y + pad, canvas_h, inner_w, center);
   };
 
-  const CGFloat gap = 14 * s;
-  CGFloat total = lock_s + gap;
-  total += measure(copy.header, title_f) + gap;
-  total += measure(copy.body, body_f);
-  CGFloat y = std::max<CGFloat>(24 * s, ((CGFloat)h - total) * 0.5f);
-
-  draw_lock_icon(ctx, CGRectMake(x + (block_w - lock_s) * 0.5f, canvas_h - y - lock_s, lock_s, lock_s),
-                 white);
-  y += lock_s + gap;
-  y += draw_wrapped(ctx, copy.header, title_f, white, x, y, canvas_h, block_w, center) + gap;
-  draw_wrapped(ctx, copy.body, body_f, muted, x, y, canvas_h, block_w, center);
+  if (tall) {
+    const CGFloat col_w = canvas_w - margin * 2;
+    const CGFloat inner_w = std::max<CGFloat>(1, col_w - pad * 2);
+    const CGFloat bh = brand_h(col_w);
+    const CGFloat ch = card_h(inner_w);
+    const CGFloat gap = 56 * s;
+    CGFloat y = (canvas_h - (bh + gap + ch)) * 0.5f;
+    const CGFloat x = margin;
+    draw_brand(x, y, col_w);
+    draw_card(x, y + bh + gap, col_w, ch, inner_w);
+  } else {
+    const CGFloat gap = 96 * s;
+    const CGFloat inner = canvas_w - margin * 2;
+    const CGFloat left_w = inner * 0.42f;
+    const CGFloat card_w = inner - left_w - gap;
+    const CGFloat left_x = margin;
+    const CGFloat card_x = left_x + left_w + gap;
+    const CGFloat inner_w = std::max<CGFloat>(1, card_w - pad * 2);
+    const CGFloat bh = brand_h(left_w);
+    const CGFloat ch = card_h(inner_w);
+    draw_brand(left_x, (canvas_h - bh) * 0.5f, left_w);
+    draw_card(card_x, (canvas_h - ch) * 0.5f, card_w, ch, inner_w);
+  }
 
   CGColorRelease(white);
-  CGColorRelease(muted);
-  CFRelease(title_f);
-  CFRelease(body_f);
+  CGColorRelease(fg70);
+  CGColorRelease(card_fill);
+  CGColorRelease(card_hi);
+  CFRelease(t.title);
+  CFRelease(t.sub);
+  CFRelease(t.value);
+  CFRelease(t.hint);
+  CFRelease(t.label);
   CGContextRelease(ctx);
   return out;
 }

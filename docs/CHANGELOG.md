@@ -1,9 +1,14 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (pause stub, same design)
+
+- iPhone lock stub uses the same graphite frame as idle: AirPlay wordmark, lock glyph, glass card. Still rendered at last native phone WxH and letterboxed (scene item does not jump to 16:9).
+- Breaking: no.
+
 ## 2026-08-23 (Claude Design idle stub)
 
 - Waiting frame ports the Claude Design artboards: 1920×1080 two-column (wordmark + glyphs / numbered 1–2–3 card) and 720×1280 stacked with card title + rules.
-- Type scale 1.35, graphite gradient + glow + vignette. Copy: two-line subtitle, 5 GHz / Ethernet in step 1, source name in step 3. Pause stub unchanged.
+- Type scale 1.35, graphite gradient + glow + vignette. Copy: two-line subtitle, 5 GHz / Ethernet in step 1, source name in step 3.
 - Breaking: no.
 
 ## 2026-08-23 (idle stub matches TV AirPlay screen)

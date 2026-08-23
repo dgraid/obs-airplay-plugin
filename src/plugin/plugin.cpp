@@ -195,10 +195,10 @@ PauseStubCopy pause_stub_copy() {
   PauseStubCopy c;
   if (language_is_en(module_settings().language)) {
     c.header = "Mirroring paused";
-    c.body = "The iPhone is locked. Unlock it to resume the picture.";
+    c.body = "Unlock the iPhone and the picture comes back.";
   } else {
     c.header = "Зеркало на паузе";
-    c.body = "iPhone заблокирован. Разблокируйте его, чтобы картинка вернулась.";
+    c.body = "Разблокируйте iPhone — картинка вернётся.";
   }
   return c;
 }
