@@ -19,7 +19,6 @@ struct IdleStubCopy {
 struct PauseStubCopy {
   std::string header;
   std::string body;
-  std::string hint;
 };
 
 std::vector<uint8_t> render_idle_stub(uint32_t w, uint32_t h, const std::string &receiver_name,

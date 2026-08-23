@@ -194,11 +194,9 @@ PauseStubCopy pause_stub_copy() {
   if (language_is_en(module_settings().language)) {
     c.header = "Mirroring paused";
     c.body = "The iPhone is locked. Unlock it to resume the picture.";
-    c.hint = "AirPlay is still connected. You do not need to stop mirroring.";
   } else {
     c.header = "Зеркало на паузе";
     c.body = "iPhone заблокирован. Разблокируйте его, чтобы картинка вернулась.";
-    c.hint = "Сессия AirPlay жива. Stop Mirroring не нужен.";
   }
   return c;
 }

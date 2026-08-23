@@ -17,27 +17,33 @@ CTFontRef ui_font(CGFloat size, bool bold) {
   return CTFontCreateUIFontForLanguage(bold ? kCTFontUIFontEmphasizedSystem : kCTFontUIFontSystem, size, nullptr);
 }
 
-CFAttributedStringRef make_attr(const std::string &utf8, CTFontRef font, CGColorRef color) {
+CFAttributedStringRef make_attr(const std::string &utf8, CTFontRef font, CGColorRef color,
+                                CTTextAlignment align = kCTTextAlignmentNatural) {
   CFStringRef s = CFStringCreateWithCString(kCFAllocatorDefault, utf8.c_str(), kCFStringEncodingUTF8);
   const bool owned = s != nullptr;
   if (!s)
     s = CFSTR("");
-  const void *keys[] = {kCTFontAttributeName, kCTForegroundColorAttributeName};
-  const void *vals[] = {font, color};
-  CFDictionaryRef dict = CFDictionaryCreate(kCFAllocatorDefault, keys, vals, 2, &kCFTypeDictionaryKeyCallBacks,
+  CTParagraphStyleSetting settings[] = {
+      {kCTParagraphStyleSpecifierAlignment, sizeof(align), &align}};
+  CTParagraphStyleRef style = CTParagraphStyleCreate(settings, 1);
+  const void *keys[] = {kCTFontAttributeName, kCTForegroundColorAttributeName, kCTParagraphStyleAttributeName};
+  const void *vals[] = {font, color, style};
+  CFDictionaryRef dict = CFDictionaryCreate(kCFAllocatorDefault, keys, vals, 3, &kCFTypeDictionaryKeyCallBacks,
                                             &kCFTypeDictionaryValueCallBacks);
   CFAttributedStringRef attr = CFAttributedStringCreate(kCFAllocatorDefault, s, dict);
   CFRelease(dict);
+  CFRelease(style);
   if (owned)
     CFRelease(s);
   return attr;
 }
 
 CGFloat draw_wrapped(CGContextRef ctx, const std::string &utf8, CTFontRef font, CGColorRef color, CGFloat x,
-                     CGFloat top, CGFloat canvas_h, CGFloat max_w) {
+                     CGFloat top, CGFloat canvas_h, CGFloat max_w,
+                     CTTextAlignment align = kCTTextAlignmentNatural) {
   if (utf8.empty())
     return 0;
-  CFAttributedStringRef attr = make_attr(utf8, font, color);
+  CFAttributedStringRef attr = make_attr(utf8, font, color, align);
   CTFramesetterRef fs = CTFramesetterCreateWithAttributedString(attr);
   CGSize sz = CTFramesetterSuggestFrameSizeWithConstraints(fs, CFRangeMake(0, 0), nullptr,
                                                            CGSizeMake(max_w, CGFLOAT_MAX), nullptr);
@@ -237,22 +243,20 @@ std::vector<uint8_t> render_pause_stub(uint32_t w, uint32_t h, const PauseStubCo
   const CGFloat s = std::max<CGFloat>(0.7, std::min((CGFloat)w, (CGFloat)h) / 390.0f);
   const CGFloat title_sz = 22 * s;
   const CGFloat body_sz = 16 * s;
-  const CGFloat hint_sz = 13 * s;
   const CGFloat block_w = std::min((CGFloat)w * 0.78f, 340 * s);
   const CGFloat x = ((CGFloat)w - block_w) * 0.5f;
   const CGFloat lock_s = 36 * s;
+  const CTTextAlignment center = kCTTextAlignmentCenter;
 
   CTFontRef title_f = ui_font(title_sz, true);
   CTFontRef body_f = ui_font(body_sz, false);
-  CTFontRef hint_f = ui_font(hint_sz, false);
   CGColorRef white = CGColorCreateGenericRGB(0.93, 0.93, 0.94, 1);
   CGColorRef muted = CGColorCreateGenericRGB(0.62, 0.62, 0.66, 1);
-  CGColorRef dim = CGColorCreateGenericRGB(0.45, 0.45, 0.50, 1);
 
   auto measure = [&](const std::string &t, CTFontRef f) -> CGFloat {
     if (t.empty())
       return 0;
-    CFAttributedStringRef attr = make_attr(t, f, white);
+    CFAttributedStringRef attr = make_attr(t, f, white, center);
     CTFramesetterRef fs = CTFramesetterCreateWithAttributedString(attr);
     CGSize sz = CTFramesetterSuggestFrameSizeWithConstraints(fs, CFRangeMake(0, 0), nullptr,
                                                              CGSizeMake(block_w, CGFLOAT_MAX), nullptr);
@@ -264,23 +268,19 @@ std::vector<uint8_t> render_pause_stub(uint32_t w, uint32_t h, const PauseStubCo
   const CGFloat gap = 14 * s;
   CGFloat total = lock_s + gap;
   total += measure(copy.header, title_f) + gap;
-  total += measure(copy.body, body_f) + 8 * s;
-  total += measure(copy.hint, hint_f);
+  total += measure(copy.body, body_f);
   CGFloat y = std::max<CGFloat>(24 * s, ((CGFloat)h - total) * 0.5f);
 
   draw_lock_icon(ctx, CGRectMake(x + (block_w - lock_s) * 0.5f, canvas_h - y - lock_s, lock_s, lock_s),
                  white);
   y += lock_s + gap;
-  y += draw_wrapped(ctx, copy.header, title_f, white, x, y, canvas_h, block_w) + gap;
-  y += draw_wrapped(ctx, copy.body, body_f, muted, x, y, canvas_h, block_w) + 8 * s;
-  draw_wrapped(ctx, copy.hint, hint_f, dim, x, y, canvas_h, block_w);
+  y += draw_wrapped(ctx, copy.header, title_f, white, x, y, canvas_h, block_w, center) + gap;
+  draw_wrapped(ctx, copy.body, body_f, muted, x, y, canvas_h, block_w, center);
 
   CGColorRelease(white);
   CGColorRelease(muted);
-  CGColorRelease(dim);
   CFRelease(title_f);
   CFRelease(body_f);
-  CFRelease(hint_f);
   CGContextRelease(ctx);
   return out;
 }
