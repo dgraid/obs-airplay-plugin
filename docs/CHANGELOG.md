@@ -2,11 +2,12 @@
 
 ## 2026-08-23 (idle stub / status / Tools)
 
+- Canvas instruction is always Russian (not OBS UI locale): «Повтор экрана», «Нажмите».
 - Idle: full-canvas instruction frame (CoreGraphics) instead of 16×16 empty source. Stop mirroring replaces the last frame with the stub.
 - Live video is letterboxed into the OBS canvas size so iPhone vs Mac does not change source geometry.
 - Connection status: global signal `airplay_status(ptr source, bool connected)` and source proc `get_airplay_status`. `connected` is Streaming only. Not saved in scene JSON.
 - Tools → AirPlay Receiver: global receiver name (`obs-airplay.json`). Per-source `server_name` removed from properties (one-time migrate).
-- Locale `en-US` + `ru-RU` for stub copy and Tools.
+- Locale `en-US` + `ru-RU` for Tools/properties. Canvas stub copy is always Russian (OBS UI language ignored).
 
 ## 2026-08-23 (handshake crash)
 

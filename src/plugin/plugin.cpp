@@ -127,14 +127,14 @@ void log_helper_stderr(int fd) {
 
 IdleStubCopy stub_copy() {
   IdleStubCopy c;
-  c.header = obs_module_text("Stub.Header");
-  c.step1 = obs_module_text("Stub.Step1");
-  c.step2_prefix = obs_module_text("Stub.Step2Prefix");
-  c.step2 = obs_module_text("Stub.Step2");
-  c.step2_hint_a = obs_module_text("Stub.Step2HintA");
-  c.step2_hint_b = obs_module_text("Stub.Step2HintB");
-  c.step3_prefix = obs_module_text("Stub.Step3Prefix");
-  c.step3_hint = obs_module_text("Stub.Step3Hint");
+  c.header = "Соблюдайте приведенные ниже инструкции на вашем iPhone или iPad:";
+  c.step1 = "1. Подключитесь к той же сети, что и это устройство Mac";
+  c.step2_prefix = "2. Нажмите ";
+  c.step2 = "Повтор экрана";
+  c.step2_hint_a = "Расположение: смахните от правого верхнего угла экрана вниз";
+  c.step2_hint_b = "Для ОС iOS 11 и более ранних версий: смахните снизу вверх";
+  c.step3_prefix = "3. Выберите ";
+  c.step3_hint = "Не отображается элемент? Перезагрузите устройство";
   return c;
 }
 
