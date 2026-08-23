@@ -168,23 +168,25 @@ void log_helper_stderr(int fd) {
 IdleStubCopy stub_copy() {
   IdleStubCopy c;
   if (language_is_en(module_settings().language)) {
-    c.subtitle = "Mirror your iPhone, iPad, or Mac into OBS";
-    c.device_label = "Choose This Device";
-    c.how_label = "How to Connect";
-    c.how_value = "Control Center → Screen Mirroring";
-    c.how_hint = "Swipe down from the top-right corner";
-    c.network_label = "Network";
-    c.network_value = "Same Wi-Fi as this Mac. 5 GHz Wi-Fi or Ethernet is recommended.";
-    c.footer = "Not in the list? Restart the iPhone.";
+    c.sub1 = "Wirelessly stream your";
+    c.sub2 = "iPhone, iPad or Mac into OBS";
+    c.card_title = "How to Connect";
+    c.step1 = "Connect to the same network as this Mac";
+    c.step1_hint = "5 GHz Wi-Fi or Ethernet is recommended";
+    c.step2 = "Open Control Center → Screen Mirroring";
+    c.step2_hint = "Swipe down from the top-right corner";
+    c.step3 = "Choose";
+    c.step3_hint = "Not in the list? Restart the iPhone";
   } else {
-    c.subtitle = "Передайте экран iPhone, iPad или Mac в OBS";
-    c.device_label = "Выберите это устройство";
-    c.how_label = "Как подключиться";
-    c.how_value = "Пункт управления → Повтор экрана";
-    c.how_hint = "Смахните вниз от правого верхнего угла";
-    c.network_label = "Сеть";
-    c.network_value = "Та же сеть, что и у этого Mac. Для стабильной картинки — Wi‑Fi 5 ГГц или Ethernet.";
-    c.footer = "Нет в списке? Перезагрузите iPhone.";
+    c.sub1 = "Транслируйте экран";
+    c.sub2 = "iPhone, iPad или Mac прямо в OBS";
+    c.card_title = "Как подключиться";
+    c.step1 = "Подключитесь к той же сети, что и этот Mac";
+    c.step1_hint = "Для стабильной картинки используйте Wi‑Fi 5 ГГц или Ethernet";
+    c.step2 = "Откройте Пункт управления → Повтор экрана";
+    c.step2_hint = "Смахните вниз от правого верхнего угла экрана";
+    c.step3 = "Выберите";
+    c.step3_hint = "Нет в списке? Перезагрузите iPhone или Mac";
   }
   return c;
 }

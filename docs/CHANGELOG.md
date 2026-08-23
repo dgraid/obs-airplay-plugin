@@ -1,5 +1,11 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (Claude Design idle stub)
+
+- Waiting frame ports the Claude Design artboards: 1920×1080 two-column (wordmark + glyphs / numbered 1–2–3 card) and 720×1280 stacked with card title + rules.
+- Type scale 1.35, graphite gradient + glow + vignette. Copy: two-line subtitle, 5 GHz / Ethernet in step 1, source name in step 3. Pause stub unchanged.
+- Breaking: no.
+
 ## 2026-08-23 (idle stub matches TV AirPlay screen)
 
 - Waiting canvas is a 16:9 Apple TV frame (1920×1080 design, scaled to the OBS canvas): pure black, wordmark + two glyphs on the left, glass card + white pill on the right.
