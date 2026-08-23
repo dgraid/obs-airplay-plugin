@@ -1,5 +1,13 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (handshake crash)
+
+- GET `/info` no longer SIGSEGV: stub `audio_set_client_volume` and the rest of UxPlay callbacks that the library calls without a NULL check.
+- `_airplay._tcp` and `_raop._tcp` advertised on the **same** TCP port (UxPlay `uxplay.cpp`).
+- Helper stderr is copied into the OBS log (`[obs-airplay] [helper] …`).
+- Persistent random MAC stored in source settings (`device_mac`).
+- Helper logs other `_airplay._tcp` names; they are not a protocol lock.
+
 ## 2026-08-23
 
 - Helper launches on source **activate**, stops on **deactivate** (not at OBS start).

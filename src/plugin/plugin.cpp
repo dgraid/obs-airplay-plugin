@@ -84,9 +84,46 @@ bool read_full(int fd, void *buf, size_t n) {
   return true;
 }
 
+std::string make_mac() {
+  char buf[32];
+  unsigned octet = arc4random_uniform(64);
+  octet = (octet << 1) | 2;
+  snprintf(buf, sizeof(buf), "%02x", octet);
+  std::string mac = buf;
+  for (int i = 1; i < 6; ++i) {
+    snprintf(buf, sizeof(buf), ":%02x", arc4random_uniform(256));
+    mac += buf;
+  }
+  return mac;
+}
+
+void log_helper_stderr(int fd) {
+  char buf[512];
+  std::string line;
+  while (true) {
+    ssize_t n = read(fd, buf, sizeof(buf));
+    if (n <= 0)
+      break;
+    line.append(buf, (size_t)n);
+    size_t pos;
+    while ((pos = line.find('\n')) != std::string::npos) {
+      std::string one = line.substr(0, pos);
+      if (!one.empty() && one.back() == '\r')
+        one.pop_back();
+      if (!one.empty())
+        blog(LOG_INFO, "[obs-airplay] %s", one.c_str());
+      line.erase(0, pos + 1);
+    }
+  }
+  if (!line.empty())
+    blog(LOG_INFO, "[obs-airplay] %s", line.c_str());
+  close(fd);
+}
+
 struct Source {
   obs_source_t *source = nullptr;
   std::string name = "OBS AirPlay";
+  std::string device_mac;
   int max_w = 1920, max_h = 1080, max_fps = 30;
   bool audio = true;
   bool auto_restart = true;
@@ -102,6 +139,7 @@ struct Source {
   std::atomic<uint32_t> last_state{(uint32_t)State::Disconnected};
   std::thread reader;
   std::thread supervisor;
+  std::thread log_thread;
   uint32_t width = 16, height = 16;
   std::chrono::steady_clock::time_point last_start;
   int restarts = 0;
@@ -168,6 +206,8 @@ struct Source {
     std::string mw = std::to_string(max_w);
     std::string mh = std::to_string(max_h);
     std::string mf = std::to_string(max_fps);
+    if (device_mac.empty())
+      device_mac = make_mac();
     const char *argv[] = {hp.c_str(),
                           "--socket",
                           sock_path.c_str(),
@@ -181,12 +221,31 @@ struct Source {
                           mh.c_str(),
                           "--max-fps",
                           mf.c_str(),
+                          "--mac",
+                          device_mac.c_str(),
                           nullptr};
-    pid_t pid = 0;
-    if (posix_spawn(&pid, hp.c_str(), nullptr, nullptr, (char *const *)argv, environ) != 0) {
-      blog(LOG_ERROR, "[obs-airplay] posix_spawn failed: %s", strerror(errno));
+    int errpipe[2];
+    if (pipe(errpipe) != 0) {
+      blog(LOG_ERROR, "[obs-airplay] stderr pipe failed");
       return false;
     }
+    posix_spawn_file_actions_t fa;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_adddup2(&fa, errpipe[1], STDERR_FILENO);
+    posix_spawn_file_actions_addclose(&fa, errpipe[0]);
+    posix_spawn_file_actions_addclose(&fa, errpipe[1]);
+    pid_t pid = 0;
+    int rc = posix_spawn(&pid, hp.c_str(), &fa, nullptr, (char *const *)argv, environ);
+    posix_spawn_file_actions_destroy(&fa);
+    close(errpipe[1]);
+    if (rc != 0) {
+      close(errpipe[0]);
+      blog(LOG_ERROR, "[obs-airplay] posix_spawn failed: %s", strerror(rc));
+      return false;
+    }
+    if (log_thread.joinable())
+      log_thread.join();
+    log_thread = std::thread(log_helper_stderr, errpipe[0]);
     helper_pid = pid;
     last_start = std::chrono::steady_clock::now();
     fd_set rfds;
@@ -339,6 +398,8 @@ struct Source {
       reader.join();
     if (supervisor.joinable())
       supervisor.join();
+    if (log_thread.joinable())
+      log_thread.join();
     last_state.store((uint32_t)State::Disconnected);
   }
 };
@@ -362,6 +423,13 @@ void *create(obs_data_t *settings, obs_source_t *source) {
     s->max_h = 1080;
   if (s->max_fps <= 0)
     s->max_fps = 30;
+  const char *mac = obs_data_get_string(settings, "device_mac");
+  if (!mac || !*mac) {
+    s->device_mac = make_mac();
+    obs_data_set_string(settings, "device_mac", s->device_mac.c_str());
+  } else {
+    s->device_mac = mac;
+  }
   return s;
 }
 

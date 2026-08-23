@@ -9,7 +9,7 @@ Not a Zoom AirHost clone. Zoom was audited read-only. See `docs/ZOOM_AIRHOST_AUD
 - macOS 13+ Apple Silicon (`arm64`)
 - OBS Studio 32.2.2 arm64 (`/Applications/OBS.app`)
 - iPhone/iPad/Mac on the same LAN
-- Built-in **AirPlay Receiver** off (otherwise mDNS collision): System Settings → General → AirDrop & Handoff → AirPlay Receiver → Off
+- Built-in **AirPlay Receiver** can stay on. iPhone will show several names — pick **OBS AirPlay**, not `MacBook Air`. Zoom Share iPhone at the same time only clutters the picker.
 
 ## Install
 

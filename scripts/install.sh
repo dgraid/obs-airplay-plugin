@@ -24,4 +24,4 @@ ditto "$SRC" "$DEST"
 codesign --force --deep --sign - --timestamp=none "$DEST" >/dev/null
 echo "Installed $DEST"
 echo "Open OBS → Sources → + → AirPlay Receiver"
-echo "If iPhone cannot see it: System Settings → General → AirDrop & Handoff → AirPlay Receiver → Off"
+echo "On iPhone pick the OBS source name (not MacBook Air / Zoom)."

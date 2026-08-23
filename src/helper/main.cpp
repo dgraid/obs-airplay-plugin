@@ -5,13 +5,16 @@
 #include <arpa/inet.h>
 #include <chrono>
 #include <csignal>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <dns_sd.h>
 #include <ifaddrs.h>
 #include <mutex>
 #include <net/if_dl.h>
 #include <string>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <ctime>
@@ -134,11 +137,74 @@ static void video_pause(void *) {}
 static void video_resume(void *) {}
 static void conn_feedback(void *) {}
 static void video_reset(void *, reset_type_t) {}
+static double audio_set_client_volume(void *) { return 0.0; }
 static void audio_set_volume(void *, float) {}
+static void audio_set_metadata(void *, const void *, int) {}
+static void audio_set_coverart(void *, const void *, int) {}
+static void audio_stop_coverart_rendering(void *) {}
+static void audio_remote_control_id(void *, const char *, const char *) {}
+static void audio_set_progress(void *, uint32_t *, uint32_t *, uint32_t *) {}
 static void audio_get_format(void *, unsigned char *, unsigned short *, bool *, bool *, uint64_t *) {}
 static void video_report_size(void *, float *, float *, float *, float *) {}
+static void mirror_video_running(void *, bool running) {
+  fprintf(stderr, "[helper] mirror_video_running=%d\n", (int)running);
+}
+static void report_client_request(void *, char *deviceid, char *model, char *name, bool *admit) {
+  fprintf(stderr, "[helper] client request id=%s model=%s name=%s\n",
+          deviceid ? deviceid : "?", model ? model : "?", name ? name : "?");
+  if (admit)
+    *admit = true;
+}
+static void display_pin(void *, char *pin) {
+  fprintf(stderr, "[helper] pairing pin=%s\n", pin ? pin : "?");
+}
+static void register_client(void *, const char *, const char *, const char *) {}
+static bool check_register(void *, const char *) { return true; }
+static const char *passwd(void *, int *len) {
+  if (len)
+    *len = 0;
+  return nullptr;
+}
+static void export_dacp(void *, const char *, const char *) {}
 static int video_set_codec(void *, video_codec_t codec) {
   return (codec == VIDEO_CODEC_H264 || codec == VIDEO_CODEC_H265) ? 0 : -1;
+}
+static void on_video_play(void *, const char *, float) {}
+static void on_video_scrub(void *, float) {}
+static void on_video_rate(void *, float) {}
+static void on_video_stop(void *) {}
+static void on_video_acquire_playback_info(void *, playback_info_t *info) {
+  if (info)
+    memset(info, 0, sizeof(*info));
+}
+static float on_video_playlist_remove(void *) { return 0.f; }
+
+static void DNSSD_API browse_airplay(DNSServiceRef, DNSServiceFlags flags, uint32_t, DNSServiceErrorType err,
+                                     const char *name, const char *, const char *, void *) {
+  if (err || !(flags & kDNSServiceFlagsAdd) || !name)
+    return;
+  if (g_name == name)
+    return;
+  fprintf(stderr, "[helper] other _airplay._tcp: %s (picker will show it too; not a protocol lock)\n",
+          name);
+}
+
+static void warn_other_receivers() {
+  DNSServiceRef ref = nullptr;
+  if (DNSServiceBrowse(&ref, 0, 0, "_airplay._tcp", "local.", browse_airplay, nullptr) !=
+      kDNSServiceErr_NoError)
+    return;
+  int fd = DNSServiceRefSockFD(ref);
+  for (int i = 0; i < 8; ++i) {
+    fd_set rfds;
+    FD_ZERO(&rfds);
+    FD_SET(fd, &rfds);
+    timeval tv{0, 250000};
+    int n = select(fd + 1, &rfds, nullptr, nullptr, &tv);
+    if (n > 0)
+      DNSServiceProcessResult(ref);
+  }
+  DNSServiceRefDeallocate(ref);
 }
 
 static void audio_process(void *, raop_ntp_t *, audio_decode_struct *data) {
@@ -170,6 +236,7 @@ int main(int argc, char **argv) {
   std::string sock_path;
   int max_w = 1920, max_h = 1080, max_fps = 30;
   bool use_random_mac = true;
+  std::string mac_arg;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
     auto next = [&](int &dst) {
@@ -188,6 +255,8 @@ int main(int argc, char **argv) {
       next(max_h);
     else if (a == "--max-fps")
       next(max_fps);
+    else if (a == "--mac" && i + 1 < argc)
+      mac_arg = argv[++i];
     else if (a == "--system-mac")
       use_random_mac = false;
   }
@@ -214,7 +283,9 @@ int main(int argc, char **argv) {
   g_fd = fd;
   send_state(State::Starting);
 
-  std::string mac = use_random_mac ? std::string() : find_mac();
+  std::string mac = mac_arg;
+  if (mac.empty())
+    mac = use_random_mac ? std::string() : find_mac();
   if (mac.empty())
     mac = random_mac();
   std::vector<char> hw;
@@ -249,10 +320,29 @@ int main(int argc, char **argv) {
   cbs.conn_teardown = conn_teardown;
   cbs.audio_flush = audio_flush;
   cbs.video_flush = video_flush;
+  cbs.audio_set_client_volume = audio_set_client_volume;
   cbs.audio_set_volume = audio_set_volume;
+  cbs.audio_set_metadata = audio_set_metadata;
+  cbs.audio_set_coverart = audio_set_coverart;
+  cbs.audio_stop_coverart_rendering = audio_stop_coverart_rendering;
+  cbs.audio_remote_control_id = audio_remote_control_id;
+  cbs.audio_set_progress = audio_set_progress;
   cbs.audio_get_format = audio_get_format;
   cbs.video_report_size = video_report_size;
+  cbs.mirror_video_running = mirror_video_running;
+  cbs.report_client_request = report_client_request;
+  cbs.display_pin = display_pin;
+  cbs.register_client = register_client;
+  cbs.check_register = check_register;
+  cbs.passwd = passwd;
+  cbs.export_dacp = export_dacp;
   cbs.video_set_codec = video_set_codec;
+  cbs.on_video_play = on_video_play;
+  cbs.on_video_scrub = on_video_scrub;
+  cbs.on_video_rate = on_video_rate;
+  cbs.on_video_stop = on_video_stop;
+  cbs.on_video_acquire_playback_info = on_video_acquire_playback_info;
+  cbs.on_video_playlist_remove = on_video_playlist_remove;
 
   g_raop = raop_init(&cbs);
   if (!g_raop) {
@@ -287,15 +377,15 @@ int main(int argc, char **argv) {
     send_state(State::Failed);
     return 1;
   }
-  unsigned short ap = (unsigned short)(port == 65535 ? port - 1 : port + 1);
-  if (dnssd_register_airplay(g_dnssd, ap) != 0) {
+  if (dnssd_register_airplay(g_dnssd, port) != 0) {
     fprintf(stderr, "dnssd_register_airplay failed\n");
     send_state(State::Failed);
     return 1;
   }
-  fprintf(stderr, "[helper] advertising '%s' raop=%u airplay=%u mac=%s\n", g_name.c_str(), port, ap,
+  fprintf(stderr, "[helper] advertising '%s' raop=%u airplay=%u mac=%s\n", g_name.c_str(), port, port,
           mac.c_str());
   send_state(State::Discoverable);
+  warn_other_receivers();
 
   while (g_run)
     sleep(1);

@@ -10,4 +10,4 @@ Canonical architecture write-up: `docs/ARCHITECTURE_DECISION.md`.
 | 2026-08-23 | Native VideoToolbox first, FFmpeg only inside helper | FFmpeg must not load into the OBS process. Plugin `otool -L` is `libobs` + system only. |
 | 2026-08-23 | Install only to user plugins dir | Never copy into `/Applications/OBS.app`. No sudo. |
 | 2026-08-23 | Helper starts on **activate**, stops on **deactivate** | Source in an inactive scene must not advertise Bonjour. |
-| 2026-08-23 | Zoom AirHost is read-only evidence, not a source | No copy of binaries, bundle ids, certs, TXT impersonation. |
+| 2026-08-23 | GET `/info` crash was NULL `audio_set_client_volume`, not mDNS conflict with the OS receiver | Stub callbacks; do not copy Zoom TXT. |
