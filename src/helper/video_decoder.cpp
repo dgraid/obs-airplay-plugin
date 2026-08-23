@@ -135,6 +135,43 @@ struct Ff {
   }
 };
 
+uint8_t nal_type(bool hevc, std::span<const uint8_t> nal) {
+  if (nal.empty())
+    return 0xff;
+  return hevc ? (uint8_t)((nal[0] >> 1) & 0x3f) : (uint8_t)(nal[0] & 0x1f);
+}
+
+bool nal_is_param(bool hevc, uint8_t t) {
+  if (!hevc)
+    return t == 7 || t == 8;
+  return t == 32 || t == 33 || t == 34;
+}
+
+bool nal_is_idr(bool hevc, uint8_t t) {
+  if (!hevc)
+    return t == 5;
+  return t >= 16 && t <= 21;
+}
+
+int first_vcl_type(bool hevc, const std::vector<std::span<const uint8_t>> &nals) {
+  for (auto nal : nals) {
+    uint8_t t = nal_type(hevc, nal);
+    if (nal_is_param(hevc, t))
+      continue;
+    if (!hevc && (t == 6 || t == 9 || t == 14))
+      continue;
+    return (int)t;
+  }
+  return -1;
+}
+
+bool assign_if_changed(std::vector<uint8_t> &dst, std::span<const uint8_t> nal) {
+  if (dst.size() == nal.size() && memcmp(dst.data(), nal.data(), nal.size()) == 0)
+    return false;
+  dst.assign(nal.begin(), nal.end());
+  return true;
+}
+
 } // namespace
 
 struct VideoDecoder::Impl {
@@ -148,6 +185,7 @@ struct VideoDecoder::Impl {
   int last_w = 0, last_h = 0;
   bool vt_failed = false;
   bool got_frame = false;
+  bool need_idr = false;
 
   void destroy_session() {
     if (session) {
@@ -230,13 +268,16 @@ void VideoDecoder::reset_session() {
   impl_->last_h = 0;
   impl_->got_frame = false;
   impl_->vt_failed = false;
+  impl_->need_idr = true;
 }
 
 bool VideoDecoder::decode(std::span<const uint8_t> annexb, bool hevc, std::vector<uint8_t> &bgra,
-                          int &width, int &height) {
+                          int &width, int &height, DecodeDiag *diag) {
   if (annexb.empty())
     return false;
   std::lock_guard<std::mutex> lock(impl_->mu);
+  if (diag)
+    *diag = {};
   if (impl_->vt_failed)
     return impl_->ff.decode(annexb, hevc, bgra, width, height);
 
@@ -244,27 +285,24 @@ bool VideoDecoder::decode(std::span<const uint8_t> annexb, bool hevc, std::vecto
   if (nals.empty())
     return impl_->ff.decode(annexb, hevc, bgra, width, height);
 
+  if (diag)
+    diag->vcl_nal = first_vcl_type(hevc, nals);
+
   bool params_changed = false;
   for (auto nal : nals) {
     if (nal.empty())
       continue;
-    uint8_t t = hevc ? (uint8_t)((nal[0] >> 1) & 0x3f) : (uint8_t)(nal[0] & 0x1f);
-    if (!hevc && t == 7) {
-      impl_->sps.assign(nal.begin(), nal.end());
-      params_changed = true;
-    } else if (!hevc && t == 8) {
-      impl_->pps.assign(nal.begin(), nal.end());
-      params_changed = true;
-    } else if (hevc && t == 32) {
-      impl_->vps.assign(nal.begin(), nal.end());
-      params_changed = true;
-    } else if (hevc && t == 33) {
-      impl_->sps.assign(nal.begin(), nal.end());
-      params_changed = true;
-    } else if (hevc && t == 34) {
-      impl_->pps.assign(nal.begin(), nal.end());
-      params_changed = true;
-    }
+    uint8_t t = nal_type(hevc, nal);
+    if (!hevc && t == 7)
+      params_changed |= assign_if_changed(impl_->sps, nal);
+    else if (!hevc && t == 8)
+      params_changed |= assign_if_changed(impl_->pps, nal);
+    else if (hevc && t == 32)
+      params_changed |= assign_if_changed(impl_->vps, nal);
+    else if (hevc && t == 33)
+      params_changed |= assign_if_changed(impl_->sps, nal);
+    else if (hevc && t == 34)
+      params_changed |= assign_if_changed(impl_->pps, nal);
   }
 
   const bool have_params =
@@ -274,19 +312,33 @@ bool VideoDecoder::decode(std::span<const uint8_t> annexb, bool hevc, std::vecto
       impl_->vt_failed = true;
       return impl_->ff.decode(annexb, hevc, bgra, width, height);
     }
+    impl_->need_idr = true;
+    if (diag)
+      diag->params_recreated = true;
   }
   if (!impl_->session)
     return impl_->ff.decode(annexb, hevc, bgra, width, height);
+
+  if (impl_->need_idr) {
+    bool idr = false;
+    for (auto nal : nals) {
+      if (nal_is_idr(hevc, nal_type(hevc, nal))) {
+        idr = true;
+        break;
+      }
+    }
+    if (!idr)
+      return false;
+    impl_->need_idr = false;
+  }
 
   // AVCC length-prefixed sample from Annex-B NALs (skip parameter sets).
   std::vector<uint8_t> avcc;
   for (auto nal : nals) {
     if (nal.empty())
       continue;
-    uint8_t t = hevc ? (uint8_t)((nal[0] >> 1) & 0x3f) : (uint8_t)(nal[0] & 0x1f);
-    if (!hevc && (t == 7 || t == 8))
-      continue;
-    if (hevc && (t == 32 || t == 33 || t == 34))
+    uint8_t t = nal_type(hevc, nal);
+    if (nal_is_param(hevc, t))
       continue;
     uint32_t len = OSSwapHostToBigInt32((uint32_t)nal.size());
     auto *p = (const uint8_t *)&len;
@@ -316,6 +368,8 @@ bool VideoDecoder::decode(std::span<const uint8_t> annexb, bool hevc, std::vecto
   VTDecompressionSessionWaitForAsynchronousFrames(impl_->session);
   CFRelease(sb);
   CFRelease(bb);
+  if (diag)
+    diag->vt_status = (int)st;
   if (st != noErr || !impl_->got_frame)
     return false;
   bgra = impl_->last_bgra;

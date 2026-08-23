@@ -1,5 +1,13 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (unlock: identical SPS ≠ new decoder)
+
+- VideoToolbox session is recreated only when SPS/PPS/VPS **bytes** change. Unlock `0x16` resends the same SPS prepended to a P-frame; treating that as a new decoder wiped DPB and dropped the GOP (Screen Mirroring rarely sends IDR).
+- After a real parameter change, P-frames are ignored until IDR (H.264 type 5) / HEVC IRAP.
+- UxPlay local patch: keep SPS prepend on the next VCL even if NTP timestamps differ after sleep.
+- Decode-fail log includes first VCL NAL type, VT OSStatus, and whether the session was recreated.
+- Breaking: no.
+
 ## 2026-08-23 (iPhone lock pause)
 
 - Helper honors UxPlay `video_pause` / `video_resume` (iOS lock = SPS/PPS `0x56`/`0x5e`). New IPC `State::Paused`.

@@ -249,11 +249,13 @@ static void video_process(void *, raop_ntp_t *, video_decode_struct *data) {
     return;
   std::vector<uint8_t> bgra;
   int w = 0, h = 0;
-  if (!g_vdec.decode({data->data, (size_t)data->data_len}, data->is_h265, bgra, w, h)) {
+  DecodeDiag diag{};
+  if (!g_vdec.decode({data->data, (size_t)data->data_len}, data->is_h265, bgra, w, h, &diag)) {
     uint32_t n = g_decode_fails.fetch_add(1, std::memory_order_relaxed);
     if (n < 8)
-      fprintf(stderr, "[helper] video decode failed (len=%d h265=%d)\n", data->data_len,
-              (int)data->is_h265);
+      fprintf(stderr, "[helper] video decode failed (len=%d h265=%d nal=%d vt=%d recre=%d)\n",
+              data->data_len, (int)data->is_h265, diag.vcl_nal, diag.vt_status,
+              (int)diag.params_recreated);
     return;
   }
   g_decode_fails.store(0, std::memory_order_relaxed);
