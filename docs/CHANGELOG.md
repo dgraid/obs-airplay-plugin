@@ -3,9 +3,10 @@
 ## 2026-08-23 (iPhone lock pause)
 
 - Helper honors UxPlay `video_pause` / `video_resume` (iOS lock = SPS/PPS `0x56`/`0x5e`). New IPC `State::Paused`.
-- On lock: idle stub, not a frozen last frame. `connected` stays true — on-disconnect scene does not fire. Unlock resumes live video without reconnect.
-- VideoToolbox session is reset on pause (SPS/PPS kept). Decoder no longer returns a stale BGRA buffer if the current decode produced no frame.
-- Stall fallback: if Streaming and no video for ≥2.5s (missed `0x56`), helper also enters Paused.
+- On lock: idle stub, not a frozen last frame. `connected` stays true — on-disconnect scene does not fire.
+- Decoder session stays warm across lock/unlock. iPhone often sends P-frames on wake, not IDR; resetting VT on pause killed resume (FFmpeg `reference frames exceeds max`, then TCP drop).
+- Per-frame VT miss does not permanently fall back to FFmpeg. `reset_session` only on flush/teardown.
+- Stall fallback: if Streaming and no video for ≥2.5s (missed `0x56`), helper enters Paused without dropping the decoder.
 - Breaking for scenes: no. Lock is still `connected=true`. Stop Mirroring is still disconnect.
 
 ## 2026-08-23 (source name = AirPlay name)

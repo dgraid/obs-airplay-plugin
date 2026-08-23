@@ -422,7 +422,9 @@ struct Source {
   }
 
   void apply_state(uint32_t st) {
-    last_state.store(st);
+    uint32_t prev = last_state.exchange(st);
+    if (prev == st)
+      return;
     blog(LOG_INFO, "[obs-airplay] state %s", state_name(st));
     bool live = state_is_live(st);
     bool connected = state_is_connected(st);

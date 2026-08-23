@@ -316,10 +316,8 @@ bool VideoDecoder::decode(std::span<const uint8_t> annexb, bool hevc, std::vecto
   VTDecompressionSessionWaitForAsynchronousFrames(impl_->session);
   CFRelease(sb);
   CFRelease(bb);
-  if (st != noErr || !impl_->got_frame) {
-    impl_->vt_failed = true;
-    return impl_->ff.decode(annexb, hevc, bgra, width, height);
-  }
+  if (st != noErr || !impl_->got_frame)
+    return false;
   bgra = impl_->last_bgra;
   width = impl_->last_w;
   height = impl_->last_h;

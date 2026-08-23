@@ -75,8 +75,9 @@ static bool send_msg(MsgType type, uint64_t ts, uint32_t w, uint32_t h, uint32_t
 }
 
 static void send_state(State st) {
-  g_ipc_state.store((uint32_t)st, std::memory_order_relaxed);
   uint32_t v = (uint32_t)st;
+  if (g_ipc_state.exchange(v, std::memory_order_relaxed) == v)
+    return;
   send_msg(MsgType::State, now_ns(), 0, 0, 0, 0, &v, sizeof(v));
 }
 
@@ -136,16 +137,13 @@ static void conn_destroy(void *) { send_state(State::Discoverable); }
 static void conn_reset(void *, int) { send_state(State::Disconnected); }
 static void conn_teardown(void *, bool *, bool *) {}
 static void audio_flush(void *) {}
-static void reset_video_session() { g_vdec.reset_session(); }
-static void video_flush(void *) { reset_video_session(); }
+static void video_flush(void *) { g_vdec.reset_session(); }
 static void video_pause(void *) {
   fprintf(stderr, "[helper] video_pause (client sleep)\n");
-  reset_video_session();
   send_state(State::Paused);
 }
 static void video_resume(void *) {
   fprintf(stderr, "[helper] video_resume (client wake)\n");
-  reset_video_session();
 }
 static void conn_feedback(void *) {
   if (g_ipc_state.load(std::memory_order_relaxed) != (uint32_t)State::Streaming)
@@ -156,11 +154,10 @@ static void conn_feedback(void *) {
   uint64_t now = now_ns();
   if (now >= last && now - last >= 2500000000ull) {
     fprintf(stderr, "[helper] video stall >=2.5s, pause\n");
-    reset_video_session();
     send_state(State::Paused);
   }
 }
-static void video_reset(void *, reset_type_t) { reset_video_session(); }
+static void video_reset(void *, reset_type_t) { g_vdec.reset_session(); }
 static double audio_set_client_volume(void *) { return 0.0; }
 static void audio_set_volume(void *, float volume) {
   // Screen Mirroring: iPhone hardware volume is not capture level. OBS pad + mixer.
@@ -245,13 +242,21 @@ static void audio_process(void *, raop_ntp_t *, audio_decode_struct *data) {
            (uint32_t)(pcm.size() * sizeof(int16_t)));
 }
 
+static std::atomic<uint32_t> g_decode_fails{0};
+
 static void video_process(void *, raop_ntp_t *, video_decode_struct *data) {
   if (!data || !data->data || data->data_len <= 0)
     return;
   std::vector<uint8_t> bgra;
   int w = 0, h = 0;
-  if (!g_vdec.decode({data->data, (size_t)data->data_len}, data->is_h265, bgra, w, h))
+  if (!g_vdec.decode({data->data, (size_t)data->data_len}, data->is_h265, bgra, w, h)) {
+    uint32_t n = g_decode_fails.fetch_add(1, std::memory_order_relaxed);
+    if (n < 8)
+      fprintf(stderr, "[helper] video decode failed (len=%d h265=%d)\n", data->data_len,
+              (int)data->is_h265);
     return;
+  }
+  g_decode_fails.store(0, std::memory_order_relaxed);
   g_last_video_ns.store(now_ns(), std::memory_order_relaxed);
   send_state(State::Streaming);
   send_msg(MsgType::Video, now_ns(), (uint32_t)w, (uint32_t)h, 0, 0, bgra.data(),
