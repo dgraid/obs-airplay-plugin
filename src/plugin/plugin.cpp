@@ -189,6 +189,20 @@ IdleStubCopy stub_copy() {
   return c;
 }
 
+PauseStubCopy pause_stub_copy() {
+  PauseStubCopy c;
+  if (language_is_en(module_settings().language)) {
+    c.header = "Mirroring paused";
+    c.body = "The iPhone is locked. Unlock it to resume the picture.";
+    c.hint = "AirPlay is still connected. You do not need to stop mirroring.";
+  } else {
+    c.header = "Зеркало на паузе";
+    c.body = "iPhone заблокирован. Разблокируйте его, чтобы картинка вернулась.";
+    c.hint = "Сессия AirPlay жива. Stop Mirroring не нужен.";
+  }
+  return c;
+}
+
 void canvas_size(int max_w, int max_h, uint32_t &w, uint32_t &h) {
   obs_video_info ovi{};
   if (obs_get_video_info(&ovi) && ovi.base_width > 0 && ovi.base_height > 0) {
@@ -268,6 +282,7 @@ struct Source {
   std::thread supervisor;
   std::thread log_thread;
   uint32_t width = 16, height = 16;
+  uint32_t native_w = 0, native_h = 0;
   std::chrono::steady_clock::time_point last_start;
   int restarts = 0;
   std::vector<uint8_t> frame;
@@ -400,6 +415,27 @@ struct Source {
     obs_queue_task(OBS_TASK_UI, status_job_run, job, false);
   }
 
+  void present_letterboxed(const uint8_t *src, uint32_t sw, uint32_t sh, uint64_t ts) {
+    if (!src || sw < 1 || sh < 1)
+      return;
+    uint32_t cw = 0, ch = 0;
+    canvas_size(max_w, max_h, cw, ch);
+    std::lock_guard<std::mutex> lock(mu);
+    frame.resize((size_t)cw * ch * 4);
+    letterbox_bgra(src, sw, sh, frame.data(), cw, ch);
+    width = cw;
+    height = ch;
+    obs_source_frame f{};
+    f.data[0] = frame.data();
+    f.linesize[0] = cw * 4;
+    f.width = cw;
+    f.height = ch;
+    f.format = VIDEO_FORMAT_BGRA;
+    f.timestamp = ts;
+    f.full_range = true;
+    obs_source_output_video(source, &f);
+  }
+
   void push_stub() {
     uint32_t cw = 0, ch = 0;
     canvas_size(max_w, max_h, cw, ch);
@@ -421,6 +457,30 @@ struct Source {
     obs_source_output_video(source, &f);
   }
 
+  void push_pause_stub() {
+    uint32_t sw = 0, sh = 0;
+    {
+      std::lock_guard<std::mutex> lock(mu);
+      sw = native_w;
+      sh = native_h;
+    }
+    if (sw < 16 || sh < 16) {
+      sw = 1170;
+      sh = 2532;
+    }
+    auto pixels = render_pause_stub(sw, sh, pause_stub_copy());
+    if (pixels.empty())
+      return;
+    present_letterboxed(pixels.data(), sw, sh, os_gettime_ns());
+  }
+
+  void show_placeholder() {
+    if (last_state.load() == (uint32_t)State::Paused)
+      push_pause_stub();
+    else
+      push_stub();
+  }
+
   void apply_state(uint32_t st) {
     uint32_t prev = last_state.exchange(st);
     if (prev == st)
@@ -429,7 +489,9 @@ struct Source {
     bool live = state_is_live(st);
     bool connected = state_is_connected(st);
     publish_status(connected);
-    if (!live)
+    if (st == (uint32_t)State::Paused)
+      push_pause_stub();
+    else if (!live)
       push_stub();
   }
 
@@ -438,22 +500,12 @@ struct Source {
       return;
     if (bgra.size() < (size_t)h.width * h.height * 4)
       return;
-    uint32_t cw = 0, ch = 0;
-    canvas_size(max_w, max_h, cw, ch);
-    std::lock_guard<std::mutex> lock(mu);
-    frame.resize((size_t)cw * ch * 4);
-    letterbox_bgra(bgra.data(), h.width, h.height, frame.data(), cw, ch);
-    width = cw;
-    height = ch;
-    obs_source_frame f{};
-    f.data[0] = frame.data();
-    f.linesize[0] = cw * 4;
-    f.width = cw;
-    f.height = ch;
-    f.format = VIDEO_FORMAT_BGRA;
-    f.timestamp = h.timestamp_ns;
-    f.full_range = true;
-    obs_source_output_video(source, &f);
+    {
+      std::lock_guard<std::mutex> lock(mu);
+      native_w = h.width;
+      native_h = h.height;
+    }
+    present_letterboxed(bgra.data(), h.width, h.height, h.timestamp_ns);
   }
 
   void output_audio(const Header &h, const std::vector<uint8_t> &bytes) {
@@ -507,6 +559,11 @@ struct Source {
     if (conn_fd >= 0) {
       close(conn_fd);
       conn_fd = -1;
+    }
+    {
+      std::lock_guard<std::mutex> lock(mu);
+      native_w = 0;
+      native_h = 0;
     }
     if (run.load())
       push_stub();
@@ -586,6 +643,11 @@ struct Source {
       log_thread.join();
     last_state.store((uint32_t)State::Disconnected);
     publish_status(false);
+    {
+      std::lock_guard<std::mutex> lock(mu);
+      native_w = 0;
+      native_h = 0;
+    }
     push_stub();
   }
 
@@ -599,7 +661,7 @@ struct Source {
     if (restart)
       start();
     else if (last_state.load() != (uint32_t)State::Streaming)
-      push_stub();
+      show_placeholder();
   }
 
   void tick_canvas() {
@@ -608,7 +670,7 @@ struct Source {
     if (cw == width && ch == height)
       return;
     if (last_state.load() != (uint32_t)State::Streaming)
-      push_stub();
+      show_placeholder();
     else {
       width = cw;
       height = ch;
@@ -674,7 +736,7 @@ void *create(obs_data_t *settings, obs_source_t *source) {
 void activate(void *data) {
   auto *s = (Source *)data;
   if (s->last_state.load() != (uint32_t)State::Streaming)
-    s->push_stub();
+    s->show_placeholder();
   if (!s->run.load())
     s->start();
 }
@@ -757,7 +819,7 @@ void update(void *data, obs_data_t *settings) {
     s->stop();
     s->start();
   } else if (s->last_state.load() != (uint32_t)State::Streaming) {
-    s->push_stub();
+    s->show_placeholder();
   }
 }
 
@@ -811,7 +873,7 @@ void airplay_refresh_idle_stubs() {
   }
   for (auto *s : copy) {
     if (s->last_state.load() != (uint32_t)State::Streaming)
-      s->push_stub();
+      s->show_placeholder();
   }
 }
 

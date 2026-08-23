@@ -1,5 +1,11 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (pause stub at iPhone size)
+
+- Paused (iPhone lock): separate stub (“зеркало на паузе” / unlock to resume), not the connect instructions.
+- Pause card is rendered at last native iPhone WxH and letterboxed into the OBS canvas — same phone rectangle as live video. OBS source size stays canvas (scene items do not jump). Stop Mirroring still shows the full-canvas connect stub.
+- Breaking: no.
+
 ## 2026-08-23 (knowledge dump)
 
 - Canonical plugin knowledge: `docs/KNOWLEDGE.md`. Agent always-on rule: `.cursor/rules/obs-airplay.mdc`.

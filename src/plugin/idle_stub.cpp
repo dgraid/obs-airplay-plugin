@@ -7,6 +7,10 @@
 #include <CoreGraphics/CoreGraphics.h>
 #include <CoreText/CoreText.h>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 namespace {
 
 CTFontRef ui_font(CGFloat size, bool bold) {
@@ -182,6 +186,98 @@ std::vector<uint8_t> render_idle_stub(uint32_t w, uint32_t h, const std::string 
 
   CGColorRelease(dark);
   CGColorRelease(gray);
+  CFRelease(title_f);
+  CFRelease(body_f);
+  CFRelease(hint_f);
+  CGContextRelease(ctx);
+  return out;
+}
+
+void draw_lock_icon(CGContextRef ctx, CGRect r, CGColorRef color) {
+  CGContextSaveGState(ctx);
+  CGContextSetStrokeColorWithColor(ctx, color);
+  CGFloat lw = std::max<CGFloat>(2.0, r.size.width / 12.0);
+  CGContextSetLineWidth(ctx, lw);
+  CGContextSetLineCap(ctx, kCGLineCapRound);
+  CGFloat body_h = r.size.height * 0.52;
+  CGRect body = CGRectMake(r.origin.x, r.origin.y, r.size.width, body_h);
+  CGFloat rad = std::max<CGFloat>(3.0, r.size.width / 8.0);
+  CGPathRef body_p = CGPathCreateWithRoundedRect(body, rad, rad, nullptr);
+  CGContextAddPath(ctx, body_p);
+  CGContextStrokePath(ctx);
+  CGPathRelease(body_p);
+  CGFloat shackle_w = r.size.width * 0.56;
+  CGFloat shackle_x = r.origin.x + (r.size.width - shackle_w) * 0.5;
+  CGFloat shackle_y = r.origin.y + body_h - lw * 0.5;
+  CGFloat shackle_h = r.size.height - body_h;
+  CGContextBeginPath(ctx);
+  CGContextAddArc(ctx, shackle_x + shackle_w * 0.5, shackle_y + shackle_h * 0.15, shackle_w * 0.5, 0,
+                  (CGFloat)M_PI, 0);
+  CGContextStrokePath(ctx);
+  CGContextRestoreGState(ctx);
+}
+
+std::vector<uint8_t> render_pause_stub(uint32_t w, uint32_t h, const PauseStubCopy &copy) {
+  if (w < 16 || h < 16)
+    return {};
+  std::vector<uint8_t> out((size_t)w * h * 4);
+  CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+  const uint32_t bitmap_info =
+      (uint32_t)kCGBitmapByteOrder32Little | (uint32_t)kCGImageAlphaPremultipliedFirst;
+  CGContextRef ctx =
+      CGBitmapContextCreate(out.data(), w, h, 8, (size_t)w * 4, cs, (CGBitmapInfo)bitmap_info);
+  CGColorSpaceRelease(cs);
+  if (!ctx)
+    return out;
+
+  CGContextSetRGBFillColor(ctx, 0.09, 0.09, 0.11, 1);
+  CGContextFillRect(ctx, CGRectMake(0, 0, w, h));
+
+  const CGFloat canvas_h = (CGFloat)h;
+  const CGFloat s = std::max<CGFloat>(0.7, std::min((CGFloat)w, (CGFloat)h) / 390.0f);
+  const CGFloat title_sz = 22 * s;
+  const CGFloat body_sz = 16 * s;
+  const CGFloat hint_sz = 13 * s;
+  const CGFloat block_w = std::min((CGFloat)w * 0.78f, 340 * s);
+  const CGFloat x = ((CGFloat)w - block_w) * 0.5f;
+  const CGFloat lock_s = 36 * s;
+
+  CTFontRef title_f = ui_font(title_sz, true);
+  CTFontRef body_f = ui_font(body_sz, false);
+  CTFontRef hint_f = ui_font(hint_sz, false);
+  CGColorRef white = CGColorCreateGenericRGB(0.93, 0.93, 0.94, 1);
+  CGColorRef muted = CGColorCreateGenericRGB(0.62, 0.62, 0.66, 1);
+  CGColorRef dim = CGColorCreateGenericRGB(0.45, 0.45, 0.50, 1);
+
+  auto measure = [&](const std::string &t, CTFontRef f) -> CGFloat {
+    if (t.empty())
+      return 0;
+    CFAttributedStringRef attr = make_attr(t, f, white);
+    CTFramesetterRef fs = CTFramesetterCreateWithAttributedString(attr);
+    CGSize sz = CTFramesetterSuggestFrameSizeWithConstraints(fs, CFRangeMake(0, 0), nullptr,
+                                                             CGSizeMake(block_w, CGFLOAT_MAX), nullptr);
+    CFRelease(fs);
+    CFRelease(attr);
+    return std::ceil(sz.height) + 1;
+  };
+
+  const CGFloat gap = 14 * s;
+  CGFloat total = lock_s + gap;
+  total += measure(copy.header, title_f) + gap;
+  total += measure(copy.body, body_f) + 8 * s;
+  total += measure(copy.hint, hint_f);
+  CGFloat y = std::max<CGFloat>(24 * s, ((CGFloat)h - total) * 0.5f);
+
+  draw_lock_icon(ctx, CGRectMake(x + (block_w - lock_s) * 0.5f, canvas_h - y - lock_s, lock_s, lock_s),
+                 white);
+  y += lock_s + gap;
+  y += draw_wrapped(ctx, copy.header, title_f, white, x, y, canvas_h, block_w) + gap;
+  y += draw_wrapped(ctx, copy.body, body_f, muted, x, y, canvas_h, block_w) + 8 * s;
+  draw_wrapped(ctx, copy.hint, hint_f, dim, x, y, canvas_h, block_w);
+
+  CGColorRelease(white);
+  CGColorRelease(muted);
+  CGColorRelease(dim);
   CFRelease(title_f);
   CFRelease(body_f);
   CFRelease(hint_f);
