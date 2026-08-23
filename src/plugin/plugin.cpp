@@ -1,6 +1,12 @@
 #include "../common/ipc.hpp"
+#include "idle_stub.hpp"
+#include "module_settings.hpp"
 
 #include <obs-module.h>
+#include <callback/calldata.h>
+#include <callback/proc.h>
+#include <callback/signal.h>
+#include <util/platform.h>
 
 #include <algorithm>
 #include <atomic>
@@ -59,7 +65,6 @@ std::string helper_path() {
   const char *plug = obs_get_module_binary_path(obs_current_module());
   if (!plug)
     return {};
-  // .../obs-airplay.plugin/Contents/MacOS/obs-airplay
   std::string p = plug;
   auto pos = p.rfind("/Contents/MacOS/");
   if (pos == std::string::npos)
@@ -120,6 +125,53 @@ void log_helper_stderr(int fd) {
   close(fd);
 }
 
+IdleStubCopy stub_copy() {
+  IdleStubCopy c;
+  c.header = obs_module_text("Stub.Header");
+  c.step1 = obs_module_text("Stub.Step1");
+  c.step2_prefix = obs_module_text("Stub.Step2Prefix");
+  c.step2 = obs_module_text("Stub.Step2");
+  c.step2_hint_a = obs_module_text("Stub.Step2HintA");
+  c.step2_hint_b = obs_module_text("Stub.Step2HintB");
+  c.step3_prefix = obs_module_text("Stub.Step3Prefix");
+  c.step3_hint = obs_module_text("Stub.Step3Hint");
+  return c;
+}
+
+void canvas_size(int max_w, int max_h, uint32_t &w, uint32_t &h) {
+  obs_video_info ovi{};
+  if (obs_get_video_info(&ovi) && ovi.base_width > 0 && ovi.base_height > 0) {
+    w = ovi.base_width;
+    h = ovi.base_height;
+    return;
+  }
+  w = (uint32_t)std::max(640, max_w);
+  h = (uint32_t)std::max(360, max_h);
+}
+
+struct StatusJob {
+  obs_weak_source_t *weak = nullptr;
+  bool connected = false;
+};
+
+void status_job_run(void *p) {
+  auto *j = static_cast<StatusJob *>(p);
+  obs_source_t *src = obs_weak_source_get_source(j->weak);
+  obs_weak_source_release(j->weak);
+  if (src) {
+    calldata cd;
+    uint8_t stack[256];
+    calldata_init_fixed(&cd, stack, sizeof(stack));
+    calldata_set_ptr(&cd, "source", src);
+    calldata_set_bool(&cd, "connected", j->connected);
+    signal_handler_signal(obs_get_signal_handler(), "airplay_status", &cd);
+    signal_handler_signal(obs_source_get_signal_handler(src), "airplay_status", &cd);
+    obs_source_update_properties(src);
+    obs_source_release(src);
+  }
+  delete j;
+}
+
 struct Source {
   obs_source_t *source = nullptr;
   std::string name = "OBS AirPlay";
@@ -137,6 +189,7 @@ struct Source {
   uint32_t generation = 1;
   std::atomic<bool> run{false};
   std::atomic<uint32_t> last_state{(uint32_t)State::Disconnected};
+  std::atomic<bool> last_connected{false};
   std::thread reader;
   std::thread supervisor;
   std::thread log_thread;
@@ -175,8 +228,7 @@ struct Source {
 
   bool listen_socket() {
     close_fds();
-    sock_path = "/tmp/obs-airplay-" + std::to_string(getpid()) + "-" +
-                std::to_string((uintptr_t)this) + ".sock";
+    sock_path = "/tmp/obs-airplay-" + std::to_string(getpid()) + "-" + std::to_string((uintptr_t)this) + ".sock";
     unlink(sock_path.c_str());
     listen_fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (listen_fd < 0)
@@ -260,9 +312,48 @@ struct Source {
     conn_fd = accept(listen_fd, nullptr, nullptr);
     if (conn_fd < 0)
       return false;
-    blog(LOG_INFO, "[obs-airplay] helper pid=%d socket=%s gen=%u", (int)pid, sock_path.c_str(),
-         generation);
+    blog(LOG_INFO, "[obs-airplay] helper pid=%d socket=%s gen=%u", (int)pid, sock_path.c_str(), generation);
     return true;
+  }
+
+  void publish_status(bool connected) {
+    bool prev = last_connected.exchange(connected);
+    if (prev == connected)
+      return;
+    auto *job = new StatusJob();
+    job->weak = obs_source_get_weak_source(source);
+    job->connected = connected;
+    obs_queue_task(OBS_TASK_UI, status_job_run, job, false);
+  }
+
+  void push_stub() {
+    uint32_t cw = 0, ch = 0;
+    canvas_size(max_w, max_h, cw, ch);
+    auto pixels = render_idle_stub(cw, ch, name, stub_copy());
+    if (pixels.empty())
+      return;
+    std::lock_guard<std::mutex> lock(mu);
+    frame = std::move(pixels);
+    width = cw;
+    height = ch;
+    obs_source_frame f{};
+    f.data[0] = frame.data();
+    f.linesize[0] = cw * 4;
+    f.width = cw;
+    f.height = ch;
+    f.format = VIDEO_FORMAT_BGRA;
+    f.timestamp = os_gettime_ns();
+    f.full_range = true;
+    obs_source_output_video(source, &f);
+  }
+
+  void apply_state(uint32_t st) {
+    last_state.store(st);
+    blog(LOG_INFO, "[obs-airplay] state %s", state_name(st));
+    bool connected = st == (uint32_t)State::Streaming;
+    publish_status(connected);
+    if (!connected)
+      push_stub();
   }
 
   void output_video(const Header &h, const std::vector<uint8_t> &bgra) {
@@ -270,13 +361,18 @@ struct Source {
       return;
     if (bgra.size() < (size_t)h.width * h.height * 4)
       return;
-    width = h.width;
-    height = h.height;
+    uint32_t cw = 0, ch = 0;
+    canvas_size(max_w, max_h, cw, ch);
+    std::lock_guard<std::mutex> lock(mu);
+    frame.resize((size_t)cw * ch * 4);
+    letterbox_bgra(bgra.data(), h.width, h.height, frame.data(), cw, ch);
+    width = cw;
+    height = ch;
     obs_source_frame f{};
-    f.data[0] = (uint8_t *)bgra.data();
-    f.linesize[0] = h.width * 4;
-    f.width = h.width;
-    f.height = h.height;
+    f.data[0] = frame.data();
+    f.linesize[0] = cw * 4;
+    f.width = cw;
+    f.height = ch;
     f.format = VIDEO_FORMAT_BGRA;
     f.timestamp = h.timestamp_ns;
     f.full_range = true;
@@ -313,8 +409,7 @@ struct Source {
       if (t == MsgType::State && payload.size() >= 4) {
         uint32_t st = 0;
         memcpy(&st, payload.data(), 4);
-        last_state.store(st);
-        blog(LOG_INFO, "[obs-airplay] state %s", state_name(st));
+        apply_state(st);
       } else if (t == MsgType::Video) {
         output_video(h, payload);
       } else if (t == MsgType::Audio) {
@@ -322,11 +417,13 @@ struct Source {
       }
     }
     last_state.store((uint32_t)State::Disconnected);
+    publish_status(false);
     if (conn_fd >= 0) {
       close(conn_fd);
       conn_fd = -1;
     }
-    obs_source_output_video(source, nullptr);
+    if (run.load())
+      push_stub();
   }
 
   bool helper_alive() {
@@ -351,7 +448,7 @@ struct Source {
         stop_helper();
         close_fds();
         if (!auto_restart) {
-          last_state.store((uint32_t)State::Failed);
+          apply_state((uint32_t)State::Failed);
           break;
         }
         auto now = std::chrono::steady_clock::now();
@@ -361,7 +458,7 @@ struct Source {
           restarts = 0;
         if (restarts > 10) {
           blog(LOG_ERROR, "[obs-airplay] restart budget exceeded");
-          last_state.store((uint32_t)State::Failed);
+          apply_state((uint32_t)State::Failed);
           break;
         }
         int delay_ms = 500 << std::min(restarts, 4);
@@ -382,7 +479,7 @@ struct Source {
     if (run.load())
       return;
     run = true;
-    last_state.store((uint32_t)State::Starting);
+    apply_state((uint32_t)State::Starting);
     if (spawn())
       reader = std::thread([this] { reader_loop(); });
     supervisor = std::thread([this] { supervisor_loop(); });
@@ -401,16 +498,55 @@ struct Source {
     if (log_thread.joinable())
       log_thread.join();
     last_state.store((uint32_t)State::Disconnected);
+    publish_status(false);
+    push_stub();
+  }
+
+  void on_receiver_name(const std::string &n) {
+    if (n.empty())
+      return;
+    bool restart = n != name && run.load();
+    name = n;
+    if (restart) {
+      stop();
+      start();
+    } else if (last_state.load() != (uint32_t)State::Streaming) {
+      push_stub();
+    }
+  }
+
+  void tick_canvas() {
+    uint32_t cw = 0, ch = 0;
+    canvas_size(max_w, max_h, cw, ch);
+    if (cw == width && ch == height)
+      return;
+    if (last_state.load() != (uint32_t)State::Streaming)
+      push_stub();
+    else {
+      width = cw;
+      height = ch;
+    }
   }
 };
 
-const char *get_name(void *) { return "AirPlay Receiver"; }
+std::mutex g_sources_mu;
+std::vector<Source *> g_sources;
+
+void proc_get_airplay_status(void *data, calldata_t *cd) {
+  auto *s = static_cast<Source *>(data);
+  bool on = s->last_state.load() == (uint32_t)State::Streaming;
+  calldata_set_bool(cd, "connected", on);
+}
+
+const char *get_name(void *) { return obs_module_text("AirPlay"); }
 
 void *create(obs_data_t *settings, obs_source_t *source) {
   auto *s = new Source();
   s->source = source;
-  const char *n = obs_data_get_string(settings, "server_name");
-  s->name = (n && *n) ? n : "OBS AirPlay";
+  const char *old_name = obs_data_get_string(settings, "server_name");
+  if (module_settings_migrate_server_name(old_name))
+    module_settings_save();
+  s->name = module_settings().receiver_name;
   s->max_w = (int)obs_data_get_int(settings, "max_width");
   s->max_h = (int)obs_data_get_int(settings, "max_height");
   s->max_fps = (int)obs_data_get_int(settings, "max_fps");
@@ -430,11 +566,23 @@ void *create(obs_data_t *settings, obs_source_t *source) {
   } else {
     s->device_mac = mac;
   }
+
+  signal_handler_add(obs_source_get_signal_handler(source), "void airplay_status(bool connected)");
+  proc_handler_add(obs_source_get_proc_handler(source), "void get_airplay_status(out bool connected)",
+                   proc_get_airplay_status, s);
+
+  {
+    std::lock_guard<std::mutex> lock(g_sources_mu);
+    g_sources.push_back(s);
+  }
+  s->push_stub();
   return s;
 }
 
 void activate(void *data) {
   auto *s = (Source *)data;
+  if (s->last_state.load() != (uint32_t)State::Streaming)
+    s->push_stub();
   if (!s->run.load())
     s->start();
 }
@@ -443,6 +591,10 @@ void deactivate(void *data) { ((Source *)data)->stop(); }
 
 void destroy(void *data) {
   auto *s = (Source *)data;
+  {
+    std::lock_guard<std::mutex> lock(g_sources_mu);
+    g_sources.erase(std::remove(g_sources.begin(), g_sources.end(), s), g_sources.end());
+  }
   s->stop();
   delete s;
 }
@@ -450,8 +602,9 @@ void destroy(void *data) {
 uint32_t get_width(void *data) { return ((Source *)data)->width; }
 uint32_t get_height(void *data) { return ((Source *)data)->height; }
 
+void video_tick(void *data, float) { ((Source *)data)->tick_canvas(); }
+
 void get_defaults(obs_data_t *d) {
-  obs_data_set_default_string(d, "server_name", "OBS AirPlay");
   obs_data_set_default_int(d, "max_width", 1920);
   obs_data_set_default_int(d, "max_height", 1080);
   obs_data_set_default_int(d, "max_fps", 30);
@@ -460,39 +613,44 @@ void get_defaults(obs_data_t *d) {
   obs_data_set_default_bool(d, "low_latency", true);
 }
 
-obs_properties_t *get_properties(void *) {
+obs_properties_t *get_properties(void *data) {
+  auto *s = (Source *)data;
   obs_properties_t *p = obs_properties_create();
-  obs_properties_add_text(p, "server_name", "Receiver name", OBS_TEXT_DEFAULT);
-  obs_properties_add_int(p, "max_width", "Max width", 640, 3840, 2);
-  obs_properties_add_int(p, "max_height", "Max height", 360, 2160, 2);
-  obs_properties_add_int(p, "max_fps", "Max FPS", 15, 60, 1);
-  obs_properties_add_bool(p, "audio", "Audio");
-  obs_properties_add_bool(p, "auto_restart", "Restart helper on crash");
-  obs_properties_add_bool(p, "low_latency", "Low-latency preset");
+  bool on = s && s->last_state.load() == (uint32_t)State::Streaming;
+  obs_properties_add_text(p, "connection_status", obs_module_text(on ? "Status.Connected" : "Status.Waiting"),
+                          OBS_TEXT_INFO);
+  obs_properties_add_int(p, "max_width", obs_module_text("Prop.MaxWidth"), 640, 3840, 2);
+  obs_properties_add_int(p, "max_height", obs_module_text("Prop.MaxHeight"), 360, 2160, 2);
+  obs_properties_add_int(p, "max_fps", obs_module_text("Prop.MaxFps"), 15, 60, 1);
+  obs_properties_add_bool(p, "audio", obs_module_text("Prop.Audio"));
+  obs_properties_add_bool(p, "auto_restart", obs_module_text("Prop.AutoRestart"));
+  obs_properties_add_bool(p, "low_latency", obs_module_text("Prop.LowLatency"));
   return p;
 }
 
+void save_settings(void *, obs_data_t *settings) { obs_data_unset_user_value(settings, "connection_status"); }
+
 void update(void *data, obs_data_t *settings) {
   auto *s = (Source *)data;
-  const char *n = obs_data_get_string(settings, "server_name");
-  std::string name = (n && *n) ? n : "OBS AirPlay";
   int mw = (int)obs_data_get_int(settings, "max_width");
   int mh = (int)obs_data_get_int(settings, "max_height");
   int mf = (int)obs_data_get_int(settings, "max_fps");
   bool audio = obs_data_get_bool(settings, "audio");
   bool ar = obs_data_get_bool(settings, "auto_restart");
   bool ll = obs_data_get_bool(settings, "low_latency");
-  bool restart = name != s->name || mw != s->max_w || mh != s->max_h || mf != s->max_fps || ll != s->low_latency;
-  s->name = name;
+  bool restart = mw != s->max_w || mh != s->max_h || mf != s->max_fps || ll != s->low_latency;
   s->max_w = mw;
   s->max_h = mh;
   s->max_fps = mf;
   s->audio = audio;
   s->auto_restart = ar;
   s->low_latency = ll;
+  s->name = module_settings().receiver_name;
   if (restart && s->run.load()) {
     s->stop();
     s->start();
+  } else if (s->last_state.load() != (uint32_t)State::Streaming) {
+    s->push_stub();
   }
 }
 
@@ -508,18 +666,30 @@ obs_source_info make_info() {
   info.deactivate = deactivate;
   info.get_width = get_width;
   info.get_height = get_height;
+  info.video_tick = video_tick;
   info.get_defaults = get_defaults;
   info.get_properties = get_properties;
   info.update = update;
+  info.save = save_settings;
   info.icon_type = OBS_ICON_TYPE_DESKTOP_CAPTURE;
   return info;
 }
 
 } // namespace
 
+void airplay_apply_receiver_name() {
+  std::string name = module_settings().receiver_name;
+  std::lock_guard<std::mutex> lock(g_sources_mu);
+  for (auto *s : g_sources)
+    s->on_receiver_name(name);
+}
+
 bool obs_module_load(void) {
+  module_settings_load();
+  signal_handler_add(obs_get_signal_handler(), "void airplay_status(ptr source, bool connected)");
   static obs_source_info info = make_info();
   obs_register_source(&info);
+  tools_dialog_register();
   blog(LOG_INFO, "[obs-airplay] loaded (helper+plugin, UxPlay 1.73.6)");
   return true;
 }

@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.24)
-project(obs-airplay VERSION 0.2.0 LANGUAGES C CXX)
+project(obs-airplay VERSION 0.2.0 LANGUAGES C CXX OBJCXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_OBJCXX_STANDARD 20)
+set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
 set(CMAKE_OSX_ARCHITECTURES arm64 CACHE STRING "" FORCE)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "13.0" CACHE STRING "" FORCE)
 set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
@@ -58,20 +60,34 @@ set_target_properties(AirPlayReceiverHelper PROPERTIES
   INSTALL_RPATH "@executable_path/../Frameworks"
 )
 
-add_library(obs-airplay MODULE src/plugin/plugin.cpp)
+add_library(obs-airplay MODULE
+  src/plugin/plugin.cpp
+  src/plugin/idle_stub.cpp
+  src/plugin/module_settings.cpp
+  src/plugin/tools_dialog.mm
+)
+set_source_files_properties(src/plugin/tools_dialog.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
 target_include_directories(obs-airplay PRIVATE
   src
   ${OBS_SRC}/libobs
+  ${OBS_SRC}/frontend/api
   ${OBSCONFIG_DIR}
   ${HOMEBREW_PREFIX}/include
 )
 target_compile_definitions(obs-airplay PRIVATE HAVE_OBSCONFIG_H=1)
+target_link_directories(obs-airplay PRIVATE "${OBS_APP}/Contents/Frameworks")
 target_link_libraries(obs-airplay PRIVATE
   "-framework libobs"
+  "${OBS_APP}/Contents/Frameworks/obs-frontend-api.dylib"
+  "-framework CoreGraphics"
+  "-framework CoreText"
+  "-framework CoreFoundation"
+  "-framework AppKit"
 )
 target_link_options(obs-airplay PRIVATE
   "LINKER:-F${OBS_APP}/Contents/Frameworks"
   "LINKER:-rpath,@executable_path/../Frameworks"
+  "LINKER:-rpath,${OBS_APP}/Contents/Frameworks"
 )
 set_target_properties(obs-airplay PROPERTIES
   BUNDLE TRUE

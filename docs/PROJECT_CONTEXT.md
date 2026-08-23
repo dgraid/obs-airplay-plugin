@@ -12,7 +12,7 @@ Not a Zoom product. Zoom `airhost.app` was audited read-only as a process-isolat
 
 | Name | Role |
 |---|---|
-| `obs-airplay.plugin` | Thin OBS module: settings, helper supervisor, IPC ingest, `obs_source_output_video/audio` |
+| `obs-airplay.plugin` | Thin OBS module: Tools settings, helper supervisor, IPC ingest, idle stub, canvas letterbox, `obs_source_output_video/audio`, `airplay_status` signal |
 | `AirPlayReceiverHelper.app` | Nested helper: Bonjour, RAOP/AirPlay (UxPlay), decrypt, decode |
 | IPC | 48-byte header + payload on a unix socket under `/tmp/obs-airplay-<pid>-<ptr>.sock` |
 | UxPlay 1.73.6 | Protocol stack, compiled static into the helper only |
@@ -34,6 +34,13 @@ Not a Zoom product. Zoom `airhost.app` was audited read-only as a process-isolat
 - Do not write into `/Applications/OBS.app` except the agreed OBS 32.2.2 app itself.
 - Success is load + discovery + real A/V + reconnect + helper death ≠ OBS death. Compile is not success.
 - Tests not run are **BLOCKED**, not pass. See `docs/TEST_REPORT.md`.
+
+## Idle / size / status
+
+- No AirPlay session: source renders a full-canvas instruction stub (OBS canvas size). Last mirror frame is discarded on stop.
+- Streaming: helper BGRA is contain-scaled into the same canvas (black bars).
+- `connected` is true only in `Streaming`. Lua listens to `airplay_status` (see `docs/DECISIONS.md`).
+- Receiver name: Tools → AirPlay Receiver. Stored in module config `obs-airplay.json`.
 
 ## Status (2026-08-23)
 
