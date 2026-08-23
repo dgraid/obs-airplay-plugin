@@ -1,0 +1,7 @@
+build/
+dist/
+vendor/obs-studio-32.2.2/
+vendor/obs-airplay-upstream/
+.DS_Store
+*.ips
+.cache/
