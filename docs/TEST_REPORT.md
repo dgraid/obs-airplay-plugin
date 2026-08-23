@@ -18,7 +18,8 @@ Date: 2026-08-23. Host: macOS 26.6 arm64, OBS 32.2.2.
 | 10 | Rotate / resolution change | **BLOCKED** | needs 8 |
 | 11 | Disconnect/reconnect ≥20 | **BLOCKED** | needs 8 |
 | 12 | Wi-Fi toggle | **BLOCKED** | Owner 2026-08-23: off-Wi-Fi left last frame / did not return to connect stub (missing `/feedback` watchdog). Fix shipped same day; re-check: off Wi-Fi → connect window in ~8s, lock still pause stub. |
-| 13 | Lock iPhone | **PASS** | Owner 2026-08-23 after helper 16:54 install: lock → stub, unlock → live video, no Stop Mirroring. Prior fails were a stale helper (16:36) still in the plugin bundle. |
+| 13 | Lock iPhone | **PASS** | Owner 2026-08-23 after helper 16:54 install: lock → stub, unlock → live video, no Stop Mirroring. Prior fails were a stale helper (16:36) still in the plugin bundle. Re-check after stall removal: still `0x56` only. |
+| 13b | Static screen (unlocked, no motion) | **BLOCKED** | Owner 2026-08-23: stall ≥2.5s showed lock stub with no lock. Fix: drop stall→Paused. Needs owner: idle home screen stays last frame, real lock still stub. |
 | 14 | Kill helper, OBS stays | **PASS** | `kill -9` helper 28789; OBS pid 28640 alive; helper 28938 gen=3 discoverable |
 | 15 | 2h soak CPU/RSS | **BLOCKED** | leave OBS+mirror running 2h |
 | 16 | Quit OBS, no orphan helper | **PASS** | after OBS quit (pre-reinstall): `pgrep AirPlayReceiverHelper` empty |

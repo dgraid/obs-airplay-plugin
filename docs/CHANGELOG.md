@@ -1,5 +1,10 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (no lock stub on static screen)
+
+- Helper no longer treats video silence ≥2.5s as Paused. Screen Mirroring stops frames on an idle screen; that is not iPhone lock. Last decoded frame stays. Real lock is still `0x56`/`0x5e` (`video_pause`). Wi-Fi death is still `/feedback` silent ≥8s.
+- Breaking: no.
+
 ## 2026-08-23 (pause stub, same design)
 
 - iPhone lock stub uses the same graphite frame as idle: AirPlay wordmark, lock glyph, glass card. Still rendered at last native phone WxH and letterboxed (scene item does not jump to 16:9).

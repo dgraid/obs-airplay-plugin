@@ -62,9 +62,9 @@ iOS mirroring does **not** send lock-screen pixels. UxPlay (`raop_rtp_mirror.c`)
 | `0x56` / `0x5e` | sleep / stream stop | `video_pause` → IPC Paused → pause stub at last iPhone size |
 | `0x16` / `0x1e` | wake | `video_resume` (log only). Next VCL should decode |
 
-Unlock also sends unencrypted SPS/PPS (`0x16`) and UxPlay **prepends** them to the next encrypted VCL. Screen Mirroring uses a long GOP / intra refresh: wake is usually **P-frames**, not IDR.
+Unlock also sends unencrypted SPS/PPS (`0x16`) and UxPlay **prepends** them to the next encrypted VCL. Screen Mirroring uses a long GOP / intra refresh: wake is usually **P-frames**, not IDR. A static screen also stops sending VCL; that is **not** lock — keep the last decoded frame.
 
-Stall fallback: if IPC is Streaming, no video for ≥2.5s, **and** POST `/feedback` is still arriving, helper sends Paused (missed `0x56`) without tearing down the decoder.
+Paused is **only** `video_pause` (`0x56`/`0x5e`). Do not infer lock from video silence: a 2.5s stall fallback false-triggered the lock stub on idle home screen.
 
 Wi-Fi / network drop: iOS stops `/feedback` (expected every ~2s). Helper has no UxPlay GLib watchdog; it counts silence itself. After **8s** without feedback while Connecting/Streaming/Paused → Discoverable (connect stub), `reset_session`, `raop_remove_known_connections`. Do **not** treat a dead TCP hang as Paused/lock. TCP keepalive can sit for minutes; `conn_destroy`/`conn_reset` often never fire.
 

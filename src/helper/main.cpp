@@ -42,15 +42,13 @@ static dnssd_t *g_dnssd = nullptr;
 static VideoDecoder g_vdec;
 static AudioDecoder g_adec;
 static std::string g_name = "OBS AirPlay";
-static std::atomic<uint64_t> g_last_video_ns{0};
 static std::atomic<uint64_t> g_last_feedback_ns{0};
 static std::atomic<int> g_session_open{0};
 static std::atomic<int> g_drop_session{0};
 static std::atomic<uint32_t> g_ipc_state{(uint32_t)State::Starting};
 
-// iPhone lock stops video but keeps POST /feedback (~2s). Wi-Fi death stops both.
-static constexpr uint64_t kStallNs = 2500000000ull;
-static constexpr uint64_t kFeedbackAliveNs = 3000000000ull;
+// iPhone lock = 0x56/0x5e (video_pause). Static screen also stops video but is not lock.
+// Wi-Fi death stops POST /feedback (~2s cadence).
 static constexpr uint64_t kFeedbackDeadNs = 8000000000ull;
 
 static uint64_t now_ns() {
@@ -149,14 +147,12 @@ static void request_session_drop(const char *why) {
 static void conn_init(void *) {
   g_session_open.fetch_add(1, std::memory_order_relaxed);
   g_last_feedback_ns.store(now_ns(), std::memory_order_relaxed);
-  g_last_video_ns.store(0, std::memory_order_relaxed);
   send_state(State::Connecting);
 }
 static void conn_destroy(void *) {
   int n = g_session_open.load(std::memory_order_relaxed);
   if (n > 0)
     g_session_open.fetch_sub(1, std::memory_order_relaxed);
-  g_last_video_ns.store(0, std::memory_order_relaxed);
   send_state(State::Discoverable);
 }
 static void conn_reset(void *, int reason) {
@@ -180,18 +176,6 @@ static void conn_feedback(void *) {
 static void check_session_health() {
   uint64_t now = now_ns();
   uint32_t st = g_ipc_state.load(std::memory_order_relaxed);
-  if (st == (uint32_t)State::Streaming) {
-    uint64_t last_v = g_last_video_ns.load(std::memory_order_relaxed);
-    uint64_t last_fb = g_last_feedback_ns.load(std::memory_order_relaxed);
-    if (last_v && now >= last_v && now - last_v >= kStallNs) {
-      bool heartbeat_alive =
-          last_fb && now >= last_fb && now - last_fb < kFeedbackAliveNs;
-      if (heartbeat_alive) {
-        fprintf(stderr, "[helper] video stall >=2.5s with heartbeat, pause\n");
-        send_state(State::Paused);
-      }
-    }
-  }
   if (g_session_open.load(std::memory_order_relaxed) > 0 &&
       (st == (uint32_t)State::Connecting || st == (uint32_t)State::Streaming ||
        st == (uint32_t)State::Paused)) {
@@ -202,7 +186,6 @@ static void check_session_health() {
   if (g_drop_session.exchange(0, std::memory_order_relaxed) == 0)
     return;
   g_vdec.reset_session();
-  g_last_video_ns.store(0, std::memory_order_relaxed);
   send_state(State::Discoverable);
   if (g_raop)
     raop_remove_known_connections(g_raop);
@@ -309,7 +292,6 @@ static void video_process(void *, raop_ntp_t *, video_decode_struct *data) {
     return;
   }
   g_decode_fails.store(0, std::memory_order_relaxed);
-  g_last_video_ns.store(now_ns(), std::memory_order_relaxed);
   send_state(State::Streaming);
   send_msg(MsgType::Video, now_ns(), (uint32_t)w, (uint32_t)h, 0, 0, bgra.data(),
            (uint32_t)bgra.size());
