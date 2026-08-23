@@ -15,6 +15,9 @@ public:
   bool decode(std::span<const uint8_t> annexb, bool hevc, std::vector<uint8_t> &bgra,
               int &width, int &height);
 
+  // Drop VT/FFmpeg session; keep SPS/PPS/VPS so an IDR after pause can rebuild.
+  void reset_session();
+
 private:
   struct Impl;
   Impl *impl_;

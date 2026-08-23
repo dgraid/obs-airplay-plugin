@@ -147,24 +147,96 @@ struct VideoDecoder::Impl {
   std::vector<uint8_t> last_bgra;
   int last_w = 0, last_h = 0;
   bool vt_failed = false;
+  bool got_frame = false;
 
-  ~Impl() {
-    if (session)
+  void destroy_session() {
+    if (session) {
       VTDecompressionSessionInvalidate(session);
-    if (session)
       CFRelease(session);
-    if (fmt)
+      session = nullptr;
+    }
+    if (fmt) {
       CFRelease(fmt);
+      fmt = nullptr;
+    }
   }
+
+  bool create_session(bool want_hevc) {
+    destroy_session();
+    if (sps.empty() || pps.empty())
+      return false;
+    if (want_hevc && vps.empty())
+      return false;
+    OSStatus st = -1;
+    if (!want_hevc) {
+      const uint8_t *sets[2] = {sps.data(), pps.data()};
+      const size_t sizes[2] = {sps.size(), pps.size()};
+      st = CMVideoFormatDescriptionCreateFromH264ParameterSets(kCFAllocatorDefault, 2, sets, sizes,
+                                                               4, &fmt);
+    } else {
+      const uint8_t *sets[3] = {vps.data(), sps.data(), pps.data()};
+      const size_t sizes[3] = {vps.size(), sps.size(), pps.size()};
+      st = CMVideoFormatDescriptionCreateFromHEVCParameterSets(kCFAllocatorDefault, 3, sets, sizes,
+                                                               4, nullptr, &fmt);
+    }
+    if (st != noErr || !fmt)
+      return false;
+    hevc = want_hevc;
+    VTDecompressionOutputCallbackRecord cb{};
+    cb.decompressionOutputCallback =
+        [](void *ref, void *, OSStatus status, VTDecodeInfoFlags, CVImageBufferRef img, CMTime,
+           CMTime) {
+          auto *self = static_cast<Impl *>(ref);
+          if (status != noErr || !img)
+            return;
+          CVPixelBufferLockBaseAddress(img, kCVPixelBufferLock_ReadOnly);
+          int w = (int)CVPixelBufferGetWidth(img);
+          int h = (int)CVPixelBufferGetHeight(img);
+          size_t stride = CVPixelBufferGetBytesPerRow(img);
+          auto *base = (const uint8_t *)CVPixelBufferGetBaseAddress(img);
+          self->last_w = w;
+          self->last_h = h;
+          self->last_bgra.resize((size_t)w * (size_t)h * 4);
+          for (int y = 0; y < h; ++y)
+            memcpy(self->last_bgra.data() + (size_t)y * (size_t)w * 4, base + (size_t)y * stride,
+                   (size_t)w * 4);
+          CVPixelBufferUnlockBaseAddress(img, kCVPixelBufferLock_ReadOnly);
+          self->got_frame = true;
+        };
+    cb.decompressionOutputRefCon = this;
+    CFMutableDictionaryRef dst = CFDictionaryCreateMutable(
+        kCFAllocatorDefault, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    int32_t pix = kCVPixelFormatType_32BGRA;
+    CFNumberRef n = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &pix);
+    CFDictionarySetValue(dst, kCVPixelBufferPixelFormatTypeKey, n);
+    CFRelease(n);
+    st = VTDecompressionSessionCreate(kCFAllocatorDefault, fmt, nullptr, dst, &cb, &session);
+    CFRelease(dst);
+    return st == noErr && session;
+  }
+
+  ~Impl() { destroy_session(); }
 };
 
 VideoDecoder::VideoDecoder() : impl_(new Impl) {}
 VideoDecoder::~VideoDecoder() { delete impl_; }
 
+void VideoDecoder::reset_session() {
+  std::lock_guard<std::mutex> lock(impl_->mu);
+  impl_->destroy_session();
+  impl_->ff.reset();
+  impl_->last_bgra.clear();
+  impl_->last_w = 0;
+  impl_->last_h = 0;
+  impl_->got_frame = false;
+  impl_->vt_failed = false;
+}
+
 bool VideoDecoder::decode(std::span<const uint8_t> annexb, bool hevc, std::vector<uint8_t> &bgra,
                           int &width, int &height) {
   if (annexb.empty())
     return false;
+  std::lock_guard<std::mutex> lock(impl_->mu);
   if (impl_->vt_failed)
     return impl_->ff.decode(annexb, hevc, bgra, width, height);
 
@@ -195,70 +267,14 @@ bool VideoDecoder::decode(std::span<const uint8_t> annexb, bool hevc, std::vecto
     }
   }
 
-  if (params_changed && !impl_->sps.empty() && !impl_->pps.empty()) {
-    if (impl_->session) {
-      VTDecompressionSessionInvalidate(impl_->session);
-      CFRelease(impl_->session);
-      impl_->session = nullptr;
-    }
-    if (impl_->fmt) {
-      CFRelease(impl_->fmt);
-      impl_->fmt = nullptr;
-    }
-    OSStatus st = -1;
-    if (!hevc) {
-      const uint8_t *sets[2] = {impl_->sps.data(), impl_->pps.data()};
-      const size_t sizes[2] = {impl_->sps.size(), impl_->pps.size()};
-      st = CMVideoFormatDescriptionCreateFromH264ParameterSets(kCFAllocatorDefault, 2, sets, sizes,
-                                                               4, &impl_->fmt);
-    } else if (!impl_->vps.empty()) {
-      const uint8_t *sets[3] = {impl_->vps.data(), impl_->sps.data(), impl_->pps.data()};
-      const size_t sizes[3] = {impl_->vps.size(), impl_->sps.size(), impl_->pps.size()};
-      st = CMVideoFormatDescriptionCreateFromHEVCParameterSets(kCFAllocatorDefault, 3, sets, sizes,
-                                                               4, nullptr, &impl_->fmt);
-    }
-    if (st != noErr || !impl_->fmt) {
-      impl_->vt_failed = true;
-      return impl_->ff.decode(annexb, hevc, bgra, width, height);
-    }
-    CMVideoCodecType codec = hevc ? kCMVideoCodecType_HEVC : kCMVideoCodecType_H264;
-    impl_->hevc = hevc;
-    VTDecompressionOutputCallbackRecord cb{};
-    cb.decompressionOutputCallback =
-        [](void *ref, void *, OSStatus status, VTDecodeInfoFlags, CVImageBufferRef img,
-           CMTime, CMTime) {
-          auto *self = static_cast<Impl *>(ref);
-          if (status != noErr || !img)
-            return;
-          CVPixelBufferLockBaseAddress(img, kCVPixelBufferLock_ReadOnly);
-          int w = (int)CVPixelBufferGetWidth(img);
-          int h = (int)CVPixelBufferGetHeight(img);
-          size_t stride = CVPixelBufferGetBytesPerRow(img);
-          auto *base = (const uint8_t *)CVPixelBufferGetBaseAddress(img);
-          self->last_w = w;
-          self->last_h = h;
-          self->last_bgra.resize((size_t)w * (size_t)h * 4);
-          for (int y = 0; y < h; ++y)
-            memcpy(self->last_bgra.data() + (size_t)y * (size_t)w * 4, base + (size_t)y * stride,
-                   (size_t)w * 4);
-          CVPixelBufferUnlockBaseAddress(img, kCVPixelBufferLock_ReadOnly);
-        };
-    cb.decompressionOutputRefCon = impl_;
-    CFMutableDictionaryRef dst = CFDictionaryCreateMutable(
-        kCFAllocatorDefault, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    int32_t pix = kCVPixelFormatType_32BGRA;
-    CFNumberRef n = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &pix);
-    CFDictionarySetValue(dst, kCVPixelBufferPixelFormatTypeKey, n);
-    CFRelease(n);
-    st = VTDecompressionSessionCreate(kCFAllocatorDefault, impl_->fmt, nullptr, dst, &cb,
-                                      &impl_->session);
-    CFRelease(dst);
-    if (st != noErr) {
+  const bool have_params =
+      !impl_->sps.empty() && !impl_->pps.empty() && (!hevc || !impl_->vps.empty());
+  if (have_params && (params_changed || !impl_->session)) {
+    if (!impl_->create_session(hevc)) {
       impl_->vt_failed = true;
       return impl_->ff.decode(annexb, hevc, bgra, width, height);
     }
   }
-
   if (!impl_->session)
     return impl_->ff.decode(annexb, hevc, bgra, width, height);
 
@@ -295,11 +311,12 @@ bool VideoDecoder::decode(std::span<const uint8_t> annexb, bool hevc, std::vecto
     impl_->vt_failed = true;
     return impl_->ff.decode(annexb, hevc, bgra, width, height);
   }
+  impl_->got_frame = false;
   OSStatus st = VTDecompressionSessionDecodeFrame(impl_->session, sb, 0, nullptr, nullptr);
   VTDecompressionSessionWaitForAsynchronousFrames(impl_->session);
   CFRelease(sb);
   CFRelease(bb);
-  if (st != noErr || impl_->last_bgra.empty()) {
+  if (st != noErr || !impl_->got_frame) {
     impl_->vt_failed = true;
     return impl_->ff.decode(annexb, hevc, bgra, width, height);
   }

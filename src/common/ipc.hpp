@@ -23,6 +23,7 @@ enum class State : uint32_t {
   Streaming = 4,
   Disconnected = 5,
   Failed = 6,
+  Paused = 7,
 };
 
 enum class PixelFormat : uint32_t {

@@ -65,8 +65,12 @@ void fill_scenes(NSPopUpButton *popup, const std::string &selected) {
 @implementation AirPlaySettingsWindow
 
 - (void)refreshStatus {
-  bool on = airplay_any_connected();
-  self.statusValue.stringValue = @(obs_module_text(on ? "Tools.StatusConnected" : "Tools.StatusWaiting"));
+  const char *key = "Tools.StatusWaiting";
+  if (airplay_any_paused())
+    key = "Tools.StatusPaused";
+  else if (airplay_any_connected())
+    key = "Tools.StatusConnected";
+  self.statusValue.stringValue = @(obs_module_text(key));
 }
 
 - (void)loadFromSettings {

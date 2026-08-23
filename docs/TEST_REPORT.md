@@ -18,7 +18,7 @@ Date: 2026-08-23. Host: macOS 26.6 arm64, OBS 32.2.2.
 | 10 | Rotate / resolution change | **BLOCKED** | needs 8 |
 | 11 | Disconnect/reconnect ≥20 | **BLOCKED** | needs 8 |
 | 12 | Wi-Fi toggle | **BLOCKED** | needs 8 |
-| 13 | Lock iPhone | **BLOCKED** | needs 8 |
+| 13 | Lock iPhone | **BLOCKED** | needs 8. After that: lock → stub (not freeze), iPhone still connected, on-disconnect scene stays; unlock → live video without reconnect |
 | 14 | Kill helper, OBS stays | **PASS** | `kill -9` helper 28789; OBS pid 28640 alive; helper 28938 gen=3 discoverable |
 | 15 | 2h soak CPU/RSS | **BLOCKED** | leave OBS+mirror running 2h |
 | 16 | Quit OBS, no orphan helper | **PASS** | after OBS quit (pre-reinstall): `pgrep AirPlayReceiverHelper` empty |

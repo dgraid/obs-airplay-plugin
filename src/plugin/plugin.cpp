@@ -90,8 +90,15 @@ const char *state_name(uint32_t s) {
     return "disconnected";
   case State::Failed:
     return "failed";
+  case State::Paused:
+    return "paused";
   }
   return "unknown";
+}
+
+bool state_is_live(uint32_t st) { return st == (uint32_t)State::Streaming; }
+bool state_is_connected(uint32_t st) {
+  return st == (uint32_t)State::Streaming || st == (uint32_t)State::Paused;
 }
 
 std::string helper_path() {
@@ -196,6 +203,7 @@ void canvas_size(int max_w, int max_h, uint32_t &w, uint32_t &h) {
 struct StatusJob {
   obs_weak_source_t *weak = nullptr;
   bool connected = false;
+  bool notify = false;
 };
 
 void status_job_run(void *p) {
@@ -203,30 +211,35 @@ void status_job_run(void *p) {
   obs_source_t *src = obs_weak_source_get_source(j->weak);
   obs_weak_source_release(j->weak);
   if (src) {
-    calldata cd;
-    uint8_t stack[256];
-    calldata_init_fixed(&cd, stack, sizeof(stack));
-    calldata_set_ptr(&cd, "source", src);
-    calldata_set_bool(&cd, "connected", j->connected);
-    signal_handler_signal(obs_get_signal_handler(), "airplay_status", &cd);
-    signal_handler_signal(obs_source_get_signal_handler(src), "airplay_status", &cd);
+    if (j->notify) {
+      calldata cd;
+      uint8_t stack[256];
+      calldata_init_fixed(&cd, stack, sizeof(stack));
+      calldata_set_ptr(&cd, "source", src);
+      calldata_set_bool(&cd, "connected", j->connected);
+      signal_handler_signal(obs_get_signal_handler(), "airplay_status", &cd);
+      signal_handler_signal(obs_source_get_signal_handler(src), "airplay_status", &cd);
+    }
     obs_source_update_properties(src);
     obs_source_release(src);
   }
-  const std::string &want = j->connected ? module_settings().on_connect_scene : module_settings().on_disconnect_scene;
-  if (!want.empty()) {
-    obs_source_t *scene = obs_get_source_by_name(want.c_str());
-    if (scene) {
-      if (obs_source_get_type(scene) == OBS_SOURCE_TYPE_SCENE) {
-        obs_source_t *cur = obs_frontend_get_current_scene();
-        const char *cur_name = cur ? obs_source_get_name(cur) : nullptr;
-        bool same = cur_name && want == cur_name;
-        if (cur)
-          obs_source_release(cur);
-        if (!same)
-          obs_frontend_set_current_scene(scene);
+  if (j->notify) {
+    const std::string &want =
+        j->connected ? module_settings().on_connect_scene : module_settings().on_disconnect_scene;
+    if (!want.empty()) {
+      obs_source_t *scene = obs_get_source_by_name(want.c_str());
+      if (scene) {
+        if (obs_source_get_type(scene) == OBS_SOURCE_TYPE_SCENE) {
+          obs_source_t *cur = obs_frontend_get_current_scene();
+          const char *cur_name = cur ? obs_source_get_name(cur) : nullptr;
+          bool same = cur_name && want == cur_name;
+          if (cur)
+            obs_source_release(cur);
+          if (!same)
+            obs_frontend_set_current_scene(scene);
+        }
+        obs_source_release(scene);
       }
-      obs_source_release(scene);
     }
   }
   delete j;
@@ -380,11 +393,10 @@ struct Source {
 
   void publish_status(bool connected) {
     bool prev = last_connected.exchange(connected);
-    if (prev == connected)
-      return;
     auto *job = new StatusJob();
     job->weak = obs_source_get_weak_source(source);
     job->connected = connected;
+    job->notify = prev != connected;
     obs_queue_task(OBS_TASK_UI, status_job_run, job, false);
   }
 
@@ -412,9 +424,10 @@ struct Source {
   void apply_state(uint32_t st) {
     last_state.store(st);
     blog(LOG_INFO, "[obs-airplay] state %s", state_name(st));
-    bool connected = st == (uint32_t)State::Streaming;
+    bool live = state_is_live(st);
+    bool connected = state_is_connected(st);
     publish_status(connected);
-    if (!connected)
+    if (!live)
       push_stub();
   }
 
@@ -611,7 +624,7 @@ std::vector<Source *> g_sources;
 
 void proc_get_airplay_status(void *data, calldata_t *cd) {
   auto *s = static_cast<Source *>(data);
-  bool on = s->last_state.load() == (uint32_t)State::Streaming;
+  bool on = state_is_connected(s->last_state.load());
   calldata_set_bool(cd, "connected", on);
 }
 
@@ -695,9 +708,13 @@ void get_defaults(obs_data_t *d) {
 obs_properties_t *get_properties(void *data) {
   auto *s = (Source *)data;
   obs_properties_t *p = obs_properties_create();
-  bool on = s && s->last_state.load() == (uint32_t)State::Streaming;
-  obs_properties_add_text(p, "connection_status", obs_module_text(on ? "Status.Connected" : "Status.Waiting"),
-                          OBS_TEXT_INFO);
+  uint32_t st = s ? s->last_state.load() : (uint32_t)State::Disconnected;
+  const char *status_key = "Status.Waiting";
+  if (st == (uint32_t)State::Paused)
+    status_key = "Status.Paused";
+  else if (state_is_live(st))
+    status_key = "Status.Connected";
+  obs_properties_add_text(p, "connection_status", obs_module_text(status_key), OBS_TEXT_INFO);
   obs_properties_add_text(p, "name_hint", obs_module_text("Prop.NameHint"), OBS_TEXT_INFO);
   obs_properties_add_int(p, "max_width", obs_module_text("Prop.MaxWidth"), 640, 3840, 2);
   obs_properties_add_int(p, "max_height", obs_module_text("Prop.MaxHeight"), 360, 2160, 2);
@@ -768,7 +785,17 @@ obs_source_info make_info() {
 bool airplay_any_connected() {
   std::lock_guard<std::mutex> lock(g_sources_mu);
   for (auto *s : g_sources) {
-    if (s->last_state.load() == (uint32_t)State::Streaming)
+    uint32_t st = s->last_state.load();
+    if (st == (uint32_t)State::Streaming || st == (uint32_t)State::Paused)
+      return true;
+  }
+  return false;
+}
+
+bool airplay_any_paused() {
+  std::lock_guard<std::mutex> lock(g_sources_mu);
+  for (auto *s : g_sources) {
+    if (s->last_state.load() == (uint32_t)State::Paused)
       return true;
   }
   return false;

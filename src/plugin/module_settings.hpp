@@ -15,6 +15,7 @@ void module_settings_load();
 bool module_settings_save();
 
 bool airplay_any_connected();
+bool airplay_any_paused();
 void airplay_refresh_idle_stubs();
 
 void tools_dialog_register();

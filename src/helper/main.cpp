@@ -3,6 +3,7 @@
 #include "video_decoder.hpp"
 
 #include <arpa/inet.h>
+#include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdint>
@@ -41,6 +42,8 @@ static dnssd_t *g_dnssd = nullptr;
 static VideoDecoder g_vdec;
 static AudioDecoder g_adec;
 static std::string g_name = "OBS AirPlay";
+static std::atomic<uint64_t> g_last_video_ns{0};
+static std::atomic<uint32_t> g_ipc_state{(uint32_t)State::Starting};
 
 static uint64_t now_ns() {
   using namespace std::chrono;
@@ -72,6 +75,7 @@ static bool send_msg(MsgType type, uint64_t ts, uint32_t w, uint32_t h, uint32_t
 }
 
 static void send_state(State st) {
+  g_ipc_state.store((uint32_t)st, std::memory_order_relaxed);
   uint32_t v = (uint32_t)st;
   send_msg(MsgType::State, now_ns(), 0, 0, 0, 0, &v, sizeof(v));
 }
@@ -132,11 +136,31 @@ static void conn_destroy(void *) { send_state(State::Discoverable); }
 static void conn_reset(void *, int) { send_state(State::Disconnected); }
 static void conn_teardown(void *, bool *, bool *) {}
 static void audio_flush(void *) {}
-static void video_flush(void *) {}
-static void video_pause(void *) {}
-static void video_resume(void *) {}
-static void conn_feedback(void *) {}
-static void video_reset(void *, reset_type_t) {}
+static void reset_video_session() { g_vdec.reset_session(); }
+static void video_flush(void *) { reset_video_session(); }
+static void video_pause(void *) {
+  fprintf(stderr, "[helper] video_pause (client sleep)\n");
+  reset_video_session();
+  send_state(State::Paused);
+}
+static void video_resume(void *) {
+  fprintf(stderr, "[helper] video_resume (client wake)\n");
+  reset_video_session();
+}
+static void conn_feedback(void *) {
+  if (g_ipc_state.load(std::memory_order_relaxed) != (uint32_t)State::Streaming)
+    return;
+  uint64_t last = g_last_video_ns.load(std::memory_order_relaxed);
+  if (last == 0)
+    return;
+  uint64_t now = now_ns();
+  if (now >= last && now - last >= 2500000000ull) {
+    fprintf(stderr, "[helper] video stall >=2.5s, pause\n");
+    reset_video_session();
+    send_state(State::Paused);
+  }
+}
+static void video_reset(void *, reset_type_t) { reset_video_session(); }
 static double audio_set_client_volume(void *) { return 0.0; }
 static void audio_set_volume(void *, float volume) {
   // Screen Mirroring: iPhone hardware volume is not capture level. OBS pad + mixer.
@@ -228,6 +252,7 @@ static void video_process(void *, raop_ntp_t *, video_decode_struct *data) {
   int w = 0, h = 0;
   if (!g_vdec.decode({data->data, (size_t)data->data_len}, data->is_h265, bgra, w, h))
     return;
+  g_last_video_ns.store(now_ns(), std::memory_order_relaxed);
   send_state(State::Streaming);
   send_msg(MsgType::Video, now_ns(), (uint32_t)w, (uint32_t)h, 0, 0, bgra.data(),
            (uint32_t)bgra.size());
