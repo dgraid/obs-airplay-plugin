@@ -2,6 +2,7 @@
 #include "idle_stub.hpp"
 #include "module_settings.hpp"
 
+#include <obs-frontend-api.h>
 #include <obs-module.h>
 #include <callback/calldata.h>
 #include <callback/proc.h>
@@ -189,6 +190,22 @@ void status_job_run(void *p) {
     signal_handler_signal(obs_source_get_signal_handler(src), "airplay_status", &cd);
     obs_source_update_properties(src);
     obs_source_release(src);
+  }
+  const std::string &want = j->connected ? module_settings().on_connect_scene : module_settings().on_disconnect_scene;
+  if (!want.empty()) {
+    obs_source_t *scene = obs_get_source_by_name(want.c_str());
+    if (scene) {
+      if (obs_source_get_type(scene) == OBS_SOURCE_TYPE_SCENE) {
+        obs_source_t *cur = obs_frontend_get_current_scene();
+        const char *cur_name = cur ? obs_source_get_name(cur) : nullptr;
+        bool same = cur_name && want == cur_name;
+        if (cur)
+          obs_source_release(cur);
+        if (!same)
+          obs_frontend_set_current_scene(scene);
+      }
+      obs_source_release(scene);
+    }
   }
   delete j;
 }
@@ -724,6 +741,15 @@ void airplay_apply_receiver_name() {
   std::lock_guard<std::mutex> lock(g_sources_mu);
   for (auto *s : g_sources)
     s->on_receiver_name(name);
+}
+
+bool airplay_any_connected() {
+  std::lock_guard<std::mutex> lock(g_sources_mu);
+  for (auto *s : g_sources) {
+    if (s->last_state.load() == (uint32_t)State::Streaming)
+      return true;
+  }
+  return false;
 }
 
 bool obs_module_load(void) {

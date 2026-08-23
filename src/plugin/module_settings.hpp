@@ -18,5 +18,6 @@ bool module_settings_save();
 bool module_settings_migrate_server_name(const char *from_source);
 
 void airplay_apply_receiver_name();
+bool airplay_any_connected();
 
 void tools_dialog_register();

@@ -8,7 +8,7 @@
 
 ## 2026-08-23 (idle stub / status / Tools)
 
-- Tools → AirPlay Receiver: receiver name + stub language (`ru` default / `en`) in `obs-airplay.json`. Canvas copy follows that setting, not OBS UI locale.
+- Tools → AirPlay Receiver is a settings window (name, language, live status, scene on connect/disconnect). Not an NSAlert rename dialog.
 - Idle: full-canvas instruction frame (CoreGraphics) instead of 16×16 empty source. Stop mirroring replaces the last frame with the stub.
 - Live video is letterboxed into the OBS canvas size so iPhone vs Mac does not change source geometry.
 - Connection status: global signal `airplay_status(ptr source, bool connected)` and source proc `get_airplay_status`. `connected` is Streaming only. Not saved in scene JSON.
