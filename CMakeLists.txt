@@ -100,6 +100,19 @@ set_target_properties(obs-airplay PROPERTIES
   MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
   MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION}
 )
+add_dependencies(obs-airplay AirPlayReceiverHelper)
+
+# Helper relink must refresh the plugin bundle even when obs-airplay itself is up-to-date.
+add_custom_command(TARGET AirPlayReceiverHelper POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E make_directory
+          "$<TARGET_BUNDLE_DIR:obs-airplay>/Contents/Resources"
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+          "$<TARGET_BUNDLE_DIR:AirPlayReceiverHelper>"
+          "$<TARGET_BUNDLE_DIR:obs-airplay>/Contents/Resources/AirPlayReceiverHelper.app"
+  COMMAND /usr/bin/python3 "${CMAKE_SOURCE_DIR}/scripts/bundle_dylibs.py"
+          "$<TARGET_BUNDLE_DIR:obs-airplay>/Contents/Resources/AirPlayReceiverHelper.app/Contents/MacOS/AirPlayReceiverHelper"
+  COMMENT "Copy rebuilt helper into plugin bundle"
+)
 
 add_custom_command(TARGET obs-airplay POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E make_directory

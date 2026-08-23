@@ -6,6 +6,7 @@
 - After a real parameter change, P-frames are ignored until IDR (H.264 type 5) / HEVC IRAP.
 - UxPlay local patch: keep SPS prepend on the next VCL even if NTP timestamps differ after sleep.
 - Decode-fail log includes first VCL NAL type, VT OSStatus, and whether the session was recreated.
+- CMake copies the helper into the plugin bundle on helper relink (not only when the plugin MODULE rebuilds). Previously `install.sh` could ship a stale helper.
 - Breaking: no.
 
 ## 2026-08-23 (iPhone lock pause)
