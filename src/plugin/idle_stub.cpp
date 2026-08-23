@@ -560,6 +560,7 @@ void cover_blit_bgra(const uint8_t *src, uint32_t sw, uint32_t sh, uint8_t *dst,
       if (sx >= sw)
         sx = sw - 1;
       std::memcpy(drow + (size_t)x * 4, srow + (size_t)sx * 4, 4);
+      drow[(size_t)x * 4 + 3] = 255;
     }
   }
 }
@@ -595,7 +596,7 @@ void cover_blend_bgra(const uint8_t *src, uint32_t sw, uint32_t sh, uint8_t *dst
       dp[0] = (uint8_t)((dp[0] * ia + sp[0] * a_256) >> 8);
       dp[1] = (uint8_t)((dp[1] * ia + sp[1] * a_256) >> 8);
       dp[2] = (uint8_t)((dp[2] * ia + sp[2] * a_256) >> 8);
-      dp[3] = (uint8_t)((dp[3] * ia + sp[3] * a_256) >> 8);
+      dp[3] = 255;
     }
   }
 }

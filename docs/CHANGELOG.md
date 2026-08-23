@@ -1,8 +1,13 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (transparent letterbox)
+
+- Letterbox / morph margins are alpha 0 (`OBS_SOURCE_FRAME_LINEAR_ALPHA`). Phone/stub pixels stay opaque. Idle waiting screen is still a full-canvas graphic.
+- Breaking: no.
+
 ## 2026-08-23 (stage morph)
 
-- Same 300ms transition now morphs the inner letterbox rect (wide 16:9 idle ↔ narrow phone, and rotation). Content cover-fills the moving window; outside stays black. Lock/unlock at the same phone size is still a crossfade only.
+- Same 300ms transition now morphs the inner letterbox rect (wide 16:9 idle ↔ narrow phone, and rotation). Content cover-fills the moving window; outside is **transparent** (OBS scene shows through). Lock/unlock at the same phone size is still a crossfade only.
 - Breaking: no.
 
 ## 2026-08-23 (state crossfade)

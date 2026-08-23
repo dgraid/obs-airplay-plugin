@@ -38,7 +38,7 @@ Not a Zoom product. Zoom `airhost.app` was audited read-only as a process-isolat
 ## Idle / size / status
 
 - No AirPlay session: source renders a full-canvas instruction stub (OBS canvas size). Last mirror frame is discarded on stop **and on iPhone lock** (`Paused`).
-- Streaming: helper BGRA is contain-scaled into the same canvas (black bars).
+- Streaming: helper BGRA is contain-scaled into the same canvas (transparent margins, not black bars).
 - `Paused`: session still up (iPhone lock via `0x56`/`0x5e` only). Lock-specific stub at last iPhone size, letterboxed into the canvas. A static screen keeps the last frame — video silence is not lock. Identical SPS/PPS on wake does **not** recreate VideoToolbox. `connected` remains true so on-disconnect scene automation does not fire. Unlock / next decoded frame returns to Streaming. Wi-Fi off / vanished client: no `/feedback` for ≥8s → Discoverable (connect stub), `connected=false`. Idle/live/pause pixels crossfade ~300ms; the inner letterbox rect morphs wide↔narrow. `airplay_status` is not delayed.
 - `connected` is true in `Streaming` **or** `Paused`. Lua listens to `airplay_status` (see `docs/DECISIONS.md`). iOS does not send lock-screen frames over mirroring.
 - AirPlay Bonjour name = OBS source name (rename the source to rename the receiver). Stub language and scene automation: Tools → AirPlay Receiver. Stored in `obs-airplay.json`.

@@ -28,6 +28,6 @@ Date: 2026-08-23. Host: macOS 26.6 arm64, OBS 32.2.2.
 | 19 | Zoom AirHost idle audit | **PASS** | `docs/ZOOM_AIRHOST_AUDIT.md` |
 | 20 | Zoom AirHost live ports/TXT | **PASS** | parent=`zoom.us`; TCP 50000+8888; TXT `model=AppleTV3,2` `srcvers=220.68`. Do **not** copy TXT. |
 | 21 | State crossfade ~300ms | **BLOCKED** | Plugin CPU blend. Needs owner: connect / lock / unlock / Stop Mirroring fade, no black flash, scenes still switch instantly. |
-| 22 | Letterbox morph wide↔narrow | **BLOCKED** | Same 300ms. Needs owner: connect shrinks 16:9 stub into the phone rect; disconnect expands; rotate morphs, no jump. |
+| 22 | Letterbox morph wide↔narrow | **BLOCKED** | Same 300ms. Needs owner: connect shrinks 16:9 stub into the phone rect; disconnect expands; rotate morphs; **margins transparent** (color source behind shows through). |
 
 Unexecuted tests are **BLOCKED**, not pass.

@@ -472,6 +472,7 @@ struct Source {
     f.format = VIDEO_FORMAT_BGRA;
     f.timestamp = ts;
     f.full_range = true;
+    f.flags = OBS_SOURCE_FRAME_LINEAR_ALPHA;
     obs_source_output_video(source, &f);
     last_emit_ns = os_gettime_ns();
   }
