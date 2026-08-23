@@ -501,3 +501,101 @@ void letterbox_bgra(const uint8_t *src, uint32_t sw, uint32_t sh, uint8_t *dst, 
     }
   }
 }
+
+namespace {
+
+bool clip_stage(int32_t rx, int32_t ry, uint32_t rw, uint32_t rh, uint32_t dw, uint32_t dh, int32_t &x0,
+                int32_t &y0, int32_t &x1, int32_t &y1) {
+  if (rw == 0 || rh == 0 || dw == 0 || dh == 0)
+    return false;
+  x0 = std::max<int32_t>(0, rx);
+  y0 = std::max<int32_t>(0, ry);
+  x1 = std::min<int32_t>((int32_t)dw, rx + (int32_t)rw);
+  y1 = std::min<int32_t>((int32_t)dh, ry + (int32_t)rh);
+  return x0 < x1 && y0 < y1;
+}
+
+void cover_crop(uint32_t sw, uint32_t sh, uint32_t rw, uint32_t rh, uint32_t &cx, uint32_t &cy, uint32_t &cw,
+                uint32_t &ch) {
+  if ((uint64_t)sw * rh > (uint64_t)rw * sh) {
+    ch = sh;
+    cw = (uint32_t)(((uint64_t)sh * rw) / rh);
+    if (cw < 1)
+      cw = 1;
+    if (cw > sw)
+      cw = sw;
+    cx = (sw - cw) / 2;
+    cy = 0;
+  } else {
+    cw = sw;
+    ch = (uint32_t)(((uint64_t)sw * rh) / rw);
+    if (ch < 1)
+      ch = 1;
+    if (ch > sh)
+      ch = sh;
+    cx = 0;
+    cy = (sh - ch) / 2;
+  }
+}
+
+} // namespace
+
+void cover_blit_bgra(const uint8_t *src, uint32_t sw, uint32_t sh, uint8_t *dst, uint32_t dw, uint32_t dh,
+                     int32_t rx, int32_t ry, uint32_t rw, uint32_t rh) {
+  int32_t x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+  if (!src || !dst || sw < 1 || sh < 1 || !clip_stage(rx, ry, rw, rh, dw, dh, x0, y0, x1, y1))
+    return;
+  uint32_t cx = 0, cy = 0, cw = 1, ch = 1;
+  cover_crop(sw, sh, rw, rh, cx, cy, cw, ch);
+  for (int32_t y = y0; y < y1; ++y) {
+    const uint32_t ly = (uint32_t)(y - ry);
+    uint32_t sy = cy + (uint32_t)(((uint64_t)ly * ch) / rh);
+    if (sy >= sh)
+      sy = sh - 1;
+    const uint8_t *srow = src + (size_t)sy * sw * 4;
+    uint8_t *drow = dst + (size_t)y * dw * 4;
+    for (int32_t x = x0; x < x1; ++x) {
+      const uint32_t lx = (uint32_t)(x - rx);
+      uint32_t sx = cx + (uint32_t)(((uint64_t)lx * cw) / rw);
+      if (sx >= sw)
+        sx = sw - 1;
+      std::memcpy(drow + (size_t)x * 4, srow + (size_t)sx * 4, 4);
+    }
+  }
+}
+
+void cover_blend_bgra(const uint8_t *src, uint32_t sw, uint32_t sh, uint8_t *dst, uint32_t dw, uint32_t dh,
+                      int32_t rx, int32_t ry, uint32_t rw, uint32_t rh, uint32_t a_256) {
+  if (a_256 == 0)
+    return;
+  if (a_256 >= 256) {
+    cover_blit_bgra(src, sw, sh, dst, dw, dh, rx, ry, rw, rh);
+    return;
+  }
+  int32_t x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+  if (!src || !dst || sw < 1 || sh < 1 || !clip_stage(rx, ry, rw, rh, dw, dh, x0, y0, x1, y1))
+    return;
+  uint32_t cx = 0, cy = 0, cw = 1, ch = 1;
+  cover_crop(sw, sh, rw, rh, cx, cy, cw, ch);
+  const uint32_t ia = 256 - a_256;
+  for (int32_t y = y0; y < y1; ++y) {
+    const uint32_t ly = (uint32_t)(y - ry);
+    uint32_t sy = cy + (uint32_t)(((uint64_t)ly * ch) / rh);
+    if (sy >= sh)
+      sy = sh - 1;
+    const uint8_t *srow = src + (size_t)sy * sw * 4;
+    uint8_t *drow = dst + (size_t)y * dw * 4;
+    for (int32_t x = x0; x < x1; ++x) {
+      const uint32_t lx = (uint32_t)(x - rx);
+      uint32_t sx = cx + (uint32_t)(((uint64_t)lx * cw) / rw);
+      if (sx >= sw)
+        sx = sw - 1;
+      const uint8_t *sp = srow + (size_t)sx * 4;
+      uint8_t *dp = drow + (size_t)x * 4;
+      dp[0] = (uint8_t)((dp[0] * ia + sp[0] * a_256) >> 8);
+      dp[1] = (uint8_t)((dp[1] * ia + sp[1] * a_256) >> 8);
+      dp[2] = (uint8_t)((dp[2] * ia + sp[2] * a_256) >> 8);
+      dp[3] = (uint8_t)((dp[3] * ia + sp[3] * a_256) >> 8);
+    }
+  }
+}

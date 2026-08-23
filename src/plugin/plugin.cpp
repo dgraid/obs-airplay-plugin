@@ -105,6 +105,38 @@ bool state_is_connected(uint32_t st) {
 enum class Visual : uint8_t { None, Idle, Live, Pause };
 constexpr uint64_t kFadeNs = 300000000ull;
 
+struct StageRect {
+  int32_t x = 0;
+  int32_t y = 0;
+  uint32_t w = 0;
+  uint32_t h = 0;
+  bool valid() const { return w > 0 && h > 0; }
+  bool same(const StageRect &o) const { return x == o.x && y == o.y && w == o.w && h == o.h; }
+};
+
+StageRect contain_rect(uint32_t sw, uint32_t sh, uint32_t dw, uint32_t dh) {
+  if (dw == 0 || dh == 0)
+    return {};
+  if (sw == 0 || sh == 0 || (sw == dw && sh == dh))
+    return {0, 0, dw, dh};
+  const double scale = std::min((double)dw / sw, (double)dh / sh);
+  uint32_t tw = std::max(1u, (uint32_t)std::lround(sw * scale));
+  uint32_t th = std::max(1u, (uint32_t)std::lround(sh * scale));
+  if (tw > dw)
+    tw = dw;
+  if (th > dh)
+    th = dh;
+  return {(int32_t)((dw - tw) / 2), (int32_t)((dh - th) / 2), tw, th};
+}
+
+StageRect lerp_rect(const StageRect &a, const StageRect &b, float t) {
+  auto li = [t](double from, double to) -> int32_t { return (int32_t)std::lround(from + (to - from) * (double)t); };
+  auto lu = [t](double from, double to) -> uint32_t {
+    return (uint32_t)std::max<long>(1, std::lround(from + (to - from) * (double)t));
+  };
+  return {li(a.x, b.x), li(a.y, b.y), lu(a.w, b.w), lu(a.h, b.h)};
+}
+
 std::string helper_path() {
   const char *plug = obs_get_module_binary_path(obs_current_module());
   if (!plug)
@@ -292,6 +324,10 @@ struct Source {
   std::vector<uint8_t> dest;
   std::vector<uint8_t> frame;
   std::vector<uint8_t> fade_from;
+  uint32_t dest_w = 0, dest_h = 0;
+  uint32_t fade_fw = 0, fade_fh = 0;
+  StageRect dest_rect;
+  StageRect from_rect;
   Visual visual = Visual::None;
   bool fade_on = false;
   uint64_t fade_t0 = 0;
@@ -443,71 +479,95 @@ struct Source {
   void cancel_fade_locked() {
     fade_on = false;
     fade_from.clear();
+    fade_fw = 0;
+    fade_fh = 0;
   }
 
-  void start_fade_locked(Visual to) {
-    if (to == visual)
-      return;
-    const bool had = visual != Visual::None && !dest.empty() && width > 0 && height > 0;
+  float fade_t_locked() const {
+    if (!fade_on)
+      return 1.f;
+    const uint64_t now = os_gettime_ns();
+    const uint64_t elapsed = now >= fade_t0 ? now - fade_t0 : 0;
+    if (elapsed >= kFadeNs)
+      return 1.f;
+    float t = (float)elapsed / (float)kFadeNs;
+    return t * t * (3.f - 2.f * t);
+  }
+
+  void begin_transition_locked(Visual to, const StageRect &new_rect) {
+    const bool had = visual != Visual::None && !dest.empty() && dest_w > 0 && dest_h > 0 && dest_rect.valid();
+    const bool vis_ch = to != visual;
+    const bool rect_ch = had && !dest_rect.same(new_rect);
     visual = to;
-    if (!had)
+    if (!had || (!vis_ch && !rect_ch))
       return;
-    const size_t n = (size_t)width * height * 4;
-    if (fade_on && frame.size() == n)
-      fade_from = frame;
-    else if (dest.size() == n)
-      fade_from = dest;
-    else {
-      cancel_fade_locked();
-      return;
-    }
+    if (fade_on)
+      from_rect = lerp_rect(from_rect, dest_rect, fade_t_locked());
+    else
+      from_rect = dest_rect;
+    fade_from = dest;
+    fade_fw = dest_w;
+    fade_fh = dest_h;
     fade_t0 = os_gettime_ns();
     fade_on = true;
   }
 
-  void mix_and_emit_locked(uint64_t ts) {
+  void composite_and_emit_locked(uint64_t ts) {
     const size_t n = (size_t)width * height * 4;
-    if (dest.size() != n || n == 0)
+    if (n == 0 || dest.empty() || dest_w < 1 || dest_h < 1 || dest.size() < (size_t)dest_w * dest_h * 4)
       return;
-    if (!fade_on || fade_from.size() != n) {
-      cancel_fade_locked();
-      emit_video_locked(dest.data(), ts);
-      return;
+    frame.assign(n, 0);
+    uint32_t a = 256;
+    if (fade_on) {
+      if (fade_from.empty() || fade_fw < 1 || fade_fh < 1 ||
+          fade_from.size() < (size_t)fade_fw * fade_fh * 4) {
+        cancel_fade_locked();
+      } else {
+        const uint64_t now = os_gettime_ns();
+        const uint64_t elapsed = now >= fade_t0 ? now - fade_t0 : 0;
+        if (elapsed >= kFadeNs) {
+          cancel_fade_locked();
+        } else {
+          float t = (float)elapsed / (float)kFadeNs;
+          t = t * t * (3.f - 2.f * t);
+          a = (uint32_t)(t * 256.f + 0.5f);
+          if (a >= 256) {
+            a = 256;
+            cancel_fade_locked();
+          }
+        }
+      }
     }
-    const uint64_t now = os_gettime_ns();
-    const uint64_t elapsed = now >= fade_t0 ? now - fade_t0 : 0;
-    if (elapsed >= kFadeNs) {
-      cancel_fade_locked();
-      emit_video_locked(dest.data(), ts);
+    StageRect r = dest_rect;
+    if (fade_on)
+      r = lerp_rect(from_rect, dest_rect, fade_t_locked());
+    if (!r.valid())
       return;
+    if (fade_on && a < 256) {
+      cover_blit_bgra(fade_from.data(), fade_fw, fade_fh, frame.data(), width, height, r.x, r.y, r.w, r.h);
+      if (a > 0)
+        cover_blend_bgra(dest.data(), dest_w, dest_h, frame.data(), width, height, r.x, r.y, r.w, r.h, a);
+    } else {
+      cover_blit_bgra(dest.data(), dest_w, dest_h, frame.data(), width, height, r.x, r.y, r.w, r.h);
     }
-    float t = (float)elapsed / (float)kFadeNs;
-    t = t * t * (3.f - 2.f * t);
-    uint32_t a = (uint32_t)(t * 256.f + 0.5f);
-    if (a > 256)
-      a = 256;
-    const uint32_t ia = 256 - a;
-    frame.resize(n);
-    const uint8_t *from = fade_from.data();
-    const uint8_t *to = dest.data();
-    uint8_t *out = frame.data();
-    for (size_t i = 0; i < n; ++i)
-      out[i] = (uint8_t)((from[i] * ia + to[i] * a) >> 8);
-    emit_video_locked(out, ts);
+    emit_video_locked(frame.data(), ts);
   }
 
-  void present_letterboxed(const uint8_t *src, uint32_t sw, uint32_t sh, uint64_t ts, Visual kind) {
+  void present_source(const uint8_t *src, uint32_t sw, uint32_t sh, uint64_t ts, Visual kind) {
     if (!src || sw < 1 || sh < 1)
       return;
     uint32_t cw = 0, ch = 0;
     canvas_size(max_w, max_h, cw, ch);
+    const StageRect nr = contain_rect(sw, sh, cw, ch);
     std::lock_guard<std::mutex> lock(mu);
-    start_fade_locked(kind);
-    dest.resize((size_t)cw * ch * 4);
-    letterbox_bgra(src, sw, sh, dest.data(), cw, ch);
+    begin_transition_locked(kind, nr);
+    dest.assign(src, src + (size_t)sw * sh * 4);
+    dest_w = sw;
+    dest_h = sh;
+    dest_rect = nr;
     width = cw;
     height = ch;
-    mix_and_emit_locked(ts);
+    composite_and_emit_locked(ts);
   }
 
   void push_stub() {
@@ -516,12 +576,7 @@ struct Source {
     auto pixels = render_idle_stub(cw, ch, name, stub_copy());
     if (pixels.empty())
       return;
-    std::lock_guard<std::mutex> lock(mu);
-    start_fade_locked(Visual::Idle);
-    dest = std::move(pixels);
-    width = cw;
-    height = ch;
-    mix_and_emit_locked(os_gettime_ns());
+    present_source(pixels.data(), cw, ch, os_gettime_ns(), Visual::Idle);
   }
 
   void push_pause_stub() {
@@ -538,7 +593,7 @@ struct Source {
     auto pixels = render_pause_stub(sw, sh, pause_stub_copy());
     if (pixels.empty())
       return;
-    present_letterboxed(pixels.data(), sw, sh, os_gettime_ns(), Visual::Pause);
+    present_source(pixels.data(), sw, sh, os_gettime_ns(), Visual::Pause);
   }
 
   void show_placeholder() {
@@ -572,7 +627,7 @@ struct Source {
       native_w = h.width;
       native_h = h.height;
     }
-    present_letterboxed(bgra.data(), h.width, h.height, h.timestamp_ns, Visual::Live);
+    present_source(bgra.data(), h.width, h.height, h.timestamp_ns, Visual::Live);
   }
 
   void output_audio(const Header &h, const std::vector<uint8_t> &bytes) {
@@ -754,13 +809,16 @@ struct Source {
         std::lock_guard<std::mutex> lock(mu);
         width = cw;
         height = ch;
+        dest_rect = contain_rect(dest_w, dest_h, cw, ch);
+        from_rect = dest_rect;
+        composite_and_emit_locked(os_gettime_ns());
       }
       return;
     }
     if (pump) {
       std::lock_guard<std::mutex> lock(mu);
       if (fade_on)
-        mix_and_emit_locked(os_gettime_ns());
+        composite_and_emit_locked(os_gettime_ns());
     }
   }
 };

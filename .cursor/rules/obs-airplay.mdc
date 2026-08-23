@@ -9,7 +9,7 @@ Canonical knowledge: `docs/KNOWLEDGE.md`. Decisions: `docs/DECISIONS.md`. Do not
 
 ## Shape
 
-Helper + thin plugin. UxPlay + VideoToolbox + FFmpeg stay in `AirPlayReceiverHelper`. Plugin = supervisor + IPC + stub + canvas + ~300ms idle/live/pause crossfade. Never load FFmpeg into OBS. Never write into `/Applications/OBS.app`.
+Helper + thin plugin. UxPlay + VideoToolbox + FFmpeg stay in `AirPlayReceiverHelper`. Plugin = supervisor + IPC + stub + canvas + ~300ms idle/live/pause crossfade and letterbox morph. Never load FFmpeg into OBS. Never write into `/Applications/OBS.app`.
 
 ## Lock / unlock / GOP
 

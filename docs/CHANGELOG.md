@@ -1,5 +1,10 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (stage morph)
+
+- Same 300ms transition now morphs the inner letterbox rect (wide 16:9 idle ↔ narrow phone, and rotation). Content cover-fills the moving window; outside stays black. Lock/unlock at the same phone size is still a crossfade only.
+- Breaking: no.
+
 ## 2026-08-23 (state crossfade)
 
 - Plugin crossfades idle stub ↔ live ↔ pause stub in ~300ms (CPU BGRA blend, smoothstep). First paint, canvas resize, language refresh, and `Connecting` stay hard cuts. `airplay_status` still fires immediately. Helper/decoder unchanged.
