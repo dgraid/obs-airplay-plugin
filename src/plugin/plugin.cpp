@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <cstring>
 #include <mutex>
@@ -42,6 +43,15 @@ using airplay_ipc::MsgType;
 using airplay_ipc::State;
 
 namespace {
+
+constexpr double kAudioGainDbMin = -24.0;
+constexpr double kAudioGainDbMax = 0.0;
+constexpr double kAudioGainDbDefault = -6.0;
+
+float audio_gain_lin_from_db(double db) {
+  db = std::clamp(db, kAudioGainDbMin, kAudioGainDbMax);
+  return std::pow(10.0f, static_cast<float>(db) / 20.0f);
+}
 
 const char *state_name(uint32_t s) {
   switch ((State)s) {
@@ -127,14 +137,25 @@ void log_helper_stderr(int fd) {
 
 IdleStubCopy stub_copy() {
   IdleStubCopy c;
-  c.header = "Соблюдайте приведенные ниже инструкции на вашем iPhone или iPad:";
-  c.step1 = "1. Подключитесь к той же сети, что и это устройство Mac";
-  c.step2_prefix = "2. Нажмите ";
-  c.step2 = "Повтор экрана";
-  c.step2_hint_a = "Расположение: смахните от правого верхнего угла экрана вниз";
-  c.step2_hint_b = "Для ОС iOS 11 и более ранних версий: смахните снизу вверх";
-  c.step3_prefix = "3. Выберите ";
-  c.step3_hint = "Не отображается элемент? Перезагрузите устройство";
+  if (language_is_en(module_settings().language)) {
+    c.header = "Follow the instructions below on your iPhone or iPad:";
+    c.step1 = "1. Connect to the same network as this Mac";
+    c.step2_prefix = "2. Tap ";
+    c.step2 = "Screen Mirroring";
+    c.step2_hint_a = "Location: swipe down from the top-right corner of the screen";
+    c.step2_hint_b = "For iOS 11 and earlier: swipe up from the bottom";
+    c.step3_prefix = "3. Select ";
+    c.step3_hint = "Item not showing? Restart the device";
+  } else {
+    c.header = "Соблюдайте приведенные ниже инструкции на вашем iPhone или iPad:";
+    c.step1 = "1. Подключитесь к той же сети, что и это устройство Mac";
+    c.step2_prefix = "2. Нажмите ";
+    c.step2 = "Повтор экрана";
+    c.step2_hint_a = "Расположение: смахните от правого верхнего угла экрана вниз";
+    c.step2_hint_b = "Для ОС iOS 11 и более ранних версий: смахните снизу вверх";
+    c.step3_prefix = "3. Выберите ";
+    c.step3_hint = "Не отображается элемент? Перезагрузите устройство";
+  }
   return c;
 }
 
@@ -180,6 +201,7 @@ struct Source {
   bool audio = true;
   bool auto_restart = true;
   bool low_latency = true;
+  std::atomic<float> audio_gain_lin{0.501187f}; // -6 dB
 
   std::mutex mu;
   int listen_fd = -1;
@@ -382,12 +404,22 @@ struct Source {
   void output_audio(const Header &h, const std::vector<uint8_t> &bytes) {
     if (!audio || h.sample_rate == 0 || h.channels == 0)
       return;
+    const uint32_t ch = h.channels;
+    const size_t n = bytes.size() / sizeof(int16_t);
+    if (n == 0 || n % ch != 0)
+      return;
+    const float scale = audio_gain_lin.load(std::memory_order_relaxed) * (1.0f / 32768.0f);
+    const auto *in = reinterpret_cast<const int16_t *>(bytes.data());
+    pcm.resize(n * sizeof(float));
+    auto *out = reinterpret_cast<float *>(pcm.data());
+    for (size_t i = 0; i < n; ++i)
+      out[i] = (float)in[i] * scale;
     obs_source_audio a{};
-    a.data[0] = (uint8_t *)bytes.data();
-    a.frames = (uint32_t)(bytes.size() / (sizeof(int16_t) * h.channels));
-    a.speakers = h.channels >= 2 ? SPEAKERS_STEREO : SPEAKERS_MONO;
+    a.data[0] = pcm.data();
+    a.frames = (uint32_t)(n / ch);
+    a.speakers = ch >= 2 ? SPEAKERS_STEREO : SPEAKERS_MONO;
     a.samples_per_sec = h.sample_rate;
-    a.format = AUDIO_FORMAT_16BIT;
+    a.format = AUDIO_FORMAT_FLOAT;
     a.timestamp = h.timestamp_ns;
     obs_source_output_audio(source, &a);
   }
@@ -553,6 +585,8 @@ void *create(obs_data_t *settings, obs_source_t *source) {
   s->audio = obs_data_get_bool(settings, "audio");
   s->auto_restart = obs_data_get_bool(settings, "auto_restart");
   s->low_latency = obs_data_get_bool(settings, "low_latency");
+  s->audio_gain_lin.store(audio_gain_lin_from_db(obs_data_get_double(settings, "audio_gain_db")),
+                          std::memory_order_relaxed);
   if (s->max_w <= 0)
     s->max_w = 1920;
   if (s->max_h <= 0)
@@ -609,6 +643,7 @@ void get_defaults(obs_data_t *d) {
   obs_data_set_default_int(d, "max_height", 1080);
   obs_data_set_default_int(d, "max_fps", 30);
   obs_data_set_default_bool(d, "audio", true);
+  obs_data_set_default_double(d, "audio_gain_db", kAudioGainDbDefault);
   obs_data_set_default_bool(d, "auto_restart", true);
   obs_data_set_default_bool(d, "low_latency", true);
 }
@@ -623,12 +658,18 @@ obs_properties_t *get_properties(void *data) {
   obs_properties_add_int(p, "max_height", obs_module_text("Prop.MaxHeight"), 360, 2160, 2);
   obs_properties_add_int(p, "max_fps", obs_module_text("Prop.MaxFps"), 15, 60, 1);
   obs_properties_add_bool(p, "audio", obs_module_text("Prop.Audio"));
+  obs_properties_add_float_slider(p, "audio_gain_db", obs_module_text("Prop.AudioGain"), kAudioGainDbMin,
+                                  kAudioGainDbMax, 0.5);
+  obs_properties_add_text(p, "audio_gain_help", obs_module_text("Prop.AudioGainHelp"), OBS_TEXT_INFO);
   obs_properties_add_bool(p, "auto_restart", obs_module_text("Prop.AutoRestart"));
   obs_properties_add_bool(p, "low_latency", obs_module_text("Prop.LowLatency"));
   return p;
 }
 
-void save_settings(void *, obs_data_t *settings) { obs_data_unset_user_value(settings, "connection_status"); }
+void save_settings(void *, obs_data_t *settings) {
+  obs_data_unset_user_value(settings, "connection_status");
+  obs_data_unset_user_value(settings, "audio_gain_help");
+}
 
 void update(void *data, obs_data_t *settings) {
   auto *s = (Source *)data;
@@ -638,6 +679,8 @@ void update(void *data, obs_data_t *settings) {
   bool audio = obs_data_get_bool(settings, "audio");
   bool ar = obs_data_get_bool(settings, "auto_restart");
   bool ll = obs_data_get_bool(settings, "low_latency");
+  s->audio_gain_lin.store(audio_gain_lin_from_db(obs_data_get_double(settings, "audio_gain_db")),
+                          std::memory_order_relaxed);
   bool restart = mw != s->max_w || mh != s->max_h || mf != s->max_fps || ll != s->low_latency;
   s->max_w = mw;
   s->max_h = mh;

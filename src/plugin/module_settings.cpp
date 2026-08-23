@@ -43,6 +43,8 @@ void module_settings_load() {
   const char *n = obs_data_get_string(d, "receiver_name");
   if (n && *n)
     g_settings.receiver_name = n;
+  const char *lang = obs_data_get_string(d, "language");
+  g_settings.language = (lang && std::string(lang) == "en") ? "en" : "ru";
   const char *a = obs_data_get_string(d, "on_connect_scene");
   if (a)
     g_settings.on_connect_scene = a;
@@ -63,6 +65,7 @@ bool module_settings_save() {
     return false;
   obs_data_t *d = obs_data_create();
   obs_data_set_string(d, "receiver_name", g_settings.receiver_name.c_str());
+  obs_data_set_string(d, "language", g_settings.language.c_str());
   obs_data_set_string(d, "on_connect_scene", g_settings.on_connect_scene.c_str());
   obs_data_set_string(d, "on_disconnect_scene", g_settings.on_disconnect_scene.c_str());
   obs_data_set_bool(d, "migrated_server_name", g_settings.migrated_server_name);

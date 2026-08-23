@@ -1,13 +1,19 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (audio pad)
+
+- Source property `audio_gain_db` (−24…0 dB, default −6). PCM converted to float before OBS so the pad restores headroom; mixer fader is the live control.
+- iPhone hardware volume during Screen Mirroring is not applied. `SET_PARAMETER volume` is logged and ignored.
+- Breaking: no. Existing sources pick up the −6 dB default.
+
 ## 2026-08-23 (idle stub / status / Tools)
 
-- Canvas instruction is always Russian (not OBS UI locale): «Повтор экрана», «Нажмите».
+- Tools → AirPlay Receiver: receiver name + stub language (`ru` default / `en`) in `obs-airplay.json`. Canvas copy follows that setting, not OBS UI locale.
 - Idle: full-canvas instruction frame (CoreGraphics) instead of 16×16 empty source. Stop mirroring replaces the last frame with the stub.
 - Live video is letterboxed into the OBS canvas size so iPhone vs Mac does not change source geometry.
 - Connection status: global signal `airplay_status(ptr source, bool connected)` and source proc `get_airplay_status`. `connected` is Streaming only. Not saved in scene JSON.
-- Tools → AirPlay Receiver: global receiver name (`obs-airplay.json`). Per-source `server_name` removed from properties (one-time migrate).
-- Locale `en-US` + `ru-RU` for Tools/properties. Canvas stub copy is always Russian (OBS UI language ignored).
+- Per-source `server_name` removed from properties (one-time migrate into module config).
+- Locale `en-US` + `ru-RU` for Tools/properties.
 
 ## 2026-08-23 (handshake crash)
 
