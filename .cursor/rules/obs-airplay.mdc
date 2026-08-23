@@ -1,0 +1,29 @@
+---
+description: OBS AirPlay plugin — architecture, lock/unlock decoder, install, operator
+alwaysApply: true
+---
+
+# obs-airplay
+
+Canonical knowledge: `docs/KNOWLEDGE.md`. Decisions: `docs/DECISIONS.md`. Do not contradict them.
+
+## Shape
+
+Helper + thin plugin. UxPlay + VideoToolbox + FFmpeg stay in `AirPlayReceiverHelper`. Plugin = supervisor + IPC + stub + canvas. Never load FFmpeg into OBS. Never write into `/Applications/OBS.app`.
+
+## Lock / unlock / GOP
+
+- `0x56`/`0x5e` → Paused + idle stub. `0x16`/`0x1e` → resume; next successful decode → Streaming.
+- `connected == Streaming || Paused`. Lock is not disconnect.
+- Recreate VT only when SPS/PPS/VPS **bytes** change. Identical SPS on unlock must keep the session.
+- After a real parameter change, wait for IDR (H.264 type 5 / HEVC IRAP) before P-frames.
+- Do not `reset_session` on pause/resume. Do not drop UxPlay SPS prepend on NTP mismatch.
+- Fail log must include `nal=` `vt=` `recre=`.
+
+## Ship
+
+After helper/plugin changes: `cmake --build build`, then `strings` on **bundled** helper (`obs-airplay.plugin/Contents/Resources/.../AirPlayReceiverHelper`) for the new format, quit OBS, `./scripts/install.sh`, `open -a OBS`. Linking the helper app alone used to leave a stale plugin bundle.
+
+## Operator
+
+Agent runs build/test/install/OBS restart. Owner only for iPhone and product calls. Local commit after substantial edits. Push only if the owner asked. Unrun tests are BLOCKED, not pass.

@@ -16,6 +16,15 @@ cmake --build build
 
 Output: `build/obs-airplay.plugin`
 
+Helper relink copies into that bundle (CMake POST_BUILD on `AirPlayReceiverHelper`). After a decoder/UxPlay change, confirm the **bundled** binary, not `build/AirPlayReceiverHelper.app` alone:
+
+```bash
+strings build/obs-airplay.plugin/Contents/Resources/AirPlayReceiverHelper.app/Contents/MacOS/AirPlayReceiverHelper \
+  | grep 'nal=%d vt=%d recre=%d'
+```
+
+Then quit OBS and `./scripts/install.sh`. Check the same `strings` under `~/Library/Application Support/obs-studio/plugins/obs-airplay.plugin/...`.
+
 Installer `.pkg` (unsigned, current-user home, arm64):
 
 ```bash

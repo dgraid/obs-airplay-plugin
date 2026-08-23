@@ -2,7 +2,7 @@
 
 AirPlay screen mirroring into OBS Studio **32.2.2** on Apple Silicon. Protocol and decode run in **AirPlayReceiverHelper.app**; the OBS plugin only supervises the helper and pushes frames.
 
-Not a Zoom AirHost clone. Zoom was audited read-only. See `docs/ZOOM_AIRHOST_AUDIT.md` and `docs/ARCHITECTURE_DECISION.md`.
+Not a Zoom AirHost clone. Zoom was audited read-only. See `docs/KNOWLEDGE.md`, `docs/ZOOM_AIRHOST_AUDIT.md`, and `docs/ARCHITECTURE_DECISION.md`.
 
 ## Requirements
 
@@ -65,4 +65,4 @@ See `docs/BUILD.md`.
 
 ## What is not done until you test
 
-Live Zoom AirHost `--live` audit, iPhone mirror loop, 2h soak: see `docs/TEST_REPORT.md`.
+2h soak, reconnect loop, Wi-Fi toggle: see `docs/TEST_REPORT.md`. Lock/unlock and first mirror are confirmed.

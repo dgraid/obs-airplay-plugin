@@ -12,13 +12,13 @@ Date: 2026-08-23. Host: macOS 26.6 arm64, OBS 32.2.2.
 | 6 | Plugin loads in OBS 32.2.2 | **PASS** | log: `[obs-airplay] loaded (helper+plugin, UxPlay 1.73.6)` |
 | 6b | Create/delete source repeatedly | **BLOCKED** | needs GUI (or obs-websocket). Do **not** invent a pass. |
 | 7 | iPhone sees receiver | **PASS** | user picked `OBS AirPlay` in Control Center (then handshake crashed; that crash is fixed) |
-| 8 | First connection video | **BLOCKED** | GET `/info` now 200 locally (helper pid 33914, port 59671, no SIGSEGV). Need iPhone Screen Mirroring retry for a frame in OBS. |
-| 9 | Audio in mixer | **BLOCKED** | needs 8 (iPhone session) + OBS restart after pad build |
+| 8 | First connection video | **PASS** | Owner live Screen Mirroring 2026-08-23; OBS log `state streaming` (e.g. 16:50:25 in `2026-08-23 16-49-24.txt`) |
+| 9 | Audio in mixer | **BLOCKED** | needs explicit owner check of the OBS mixer while mirroring |
 | 9b | Audio pad −6 dB: int16 full-scale → float ≈ 0.501 | **PASS** | `audio_gain_lin_from_db(-6)` → 0.501187 |
 | 10 | Rotate / resolution change | **BLOCKED** | needs 8 |
 | 11 | Disconnect/reconnect ≥20 | **BLOCKED** | needs 8 |
 | 12 | Wi-Fi toggle | **BLOCKED** | needs 8 |
-| 13 | Lock iPhone | **BLOCKED** | needs 8. After that: lock → stub (not freeze), iPhone still connected, on-disconnect scene stays; unlock → live video without reconnect |
+| 13 | Lock iPhone | **PASS** | Owner 2026-08-23 after helper 16:54 install: lock → stub, unlock → live video, no Stop Mirroring. Prior fails were a stale helper (16:36) still in the plugin bundle. |
 | 14 | Kill helper, OBS stays | **PASS** | `kill -9` helper 28789; OBS pid 28640 alive; helper 28938 gen=3 discoverable |
 | 15 | 2h soak CPU/RSS | **BLOCKED** | leave OBS+mirror running 2h |
 | 16 | Quit OBS, no orphan helper | **PASS** | after OBS quit (pre-reinstall): `pgrep AirPlayReceiverHelper` empty |

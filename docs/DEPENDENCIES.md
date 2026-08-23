@@ -6,7 +6,7 @@ Recorded on the build machine 2026-08-23.
 |---|---|---|---|
 | OBS Studio | 32.2.2 arm64 `/Applications/OBS.app` | host | GPL-2.0 |
 | obs-studio sources | tag 32.2.2 | headers only | GPL-2.0 |
-| UxPlay | **v1.73.6** `21eef8df25d91e12635c36d8176ad192725baca2` | AirPlay/RAOP in helper | GPL-3.0 |
+| UxPlay | **v1.73.6** `21eef8df25d91e12635c36d8176ad192725baca2` + local `3642329` (SPS prepend keep) | AirPlay/RAOP in helper | GPL-3.0 |
 | UxPlay 2022 (not shipped) | `64a7dd0fa09aefd643bd895c437bba9573e13ac4` | baseline only | GPL-3.0 |
 | obs-airplay upstream | mika314/obs-airplay (submodule tree in vendor/) | original plugin logic | see vendor LICENSE |
 | FFmpeg | 8.1.2_1 arm64 Homebrew | helper decode fallback | LGPL/GPL |

@@ -1,5 +1,11 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (knowledge dump)
+
+- Canonical plugin knowledge: `docs/KNOWLEDGE.md`. Agent always-on rule: `.cursor/rules/obs-airplay.mdc`.
+- Lock/unlock GOP + stale-helper install trap recorded as confirmed (owner live test).
+- Breaking: no.
+
 ## 2026-08-23 (unlock: identical SPS ≠ new decoder)
 
 - VideoToolbox session is recreated only when SPS/PPS/VPS **bytes** change. Unlock `0x16` resends the same SPS prepended to a P-frame; treating that as a new decoder wiped DPB and dropped the GOP (Screen Mirroring rarely sends IDR).
@@ -42,7 +48,7 @@
 - Tools → AirPlay Receiver is a settings window (name, language, live status, scene on connect/disconnect). Not an NSAlert rename dialog.
 - Idle: full-canvas instruction frame (CoreGraphics) instead of 16×16 empty source. Stop mirroring replaces the last frame with the stub.
 - Live video is letterboxed into the OBS canvas size so iPhone vs Mac does not change source geometry.
-- Connection status: global signal `airplay_status(ptr source, bool connected)` and source proc `get_airplay_status`. `connected` is Streaming only. Not saved in scene JSON.
+- Connection status: global signal `airplay_status(ptr source, bool connected)` and source proc `get_airplay_status`. `connected` is Streaming **or** Paused. Not saved in scene JSON.
 - Per-source `server_name` removed from properties (one-time migrate into module config).
 - Locale `en-US` + `ru-RU` for Tools/properties.
 

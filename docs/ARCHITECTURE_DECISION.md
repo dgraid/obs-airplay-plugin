@@ -1,7 +1,7 @@
 # Architecture decision: AirPlay receiver for OBS
 
 Date: 2026-08-23  
-Inputs: `docs/ZOOM_AIRHOST_AUDIT.md`, OBS 32.2.2 arm64 plugin ABI, UxPlay v1.73.6 (`21eef8df25d91e12635c36d8176ad192725baca2`).
+Inputs: `docs/ZOOM_AIRHOST_AUDIT.md`, OBS 32.2.2 arm64 plugin ABI, UxPlay v1.73.6 (`21eef8df25d91e12635c36d8176ad192725baca2`). Operational dump: `docs/KNOWLEDGE.md`.
 
 ## Options
 
@@ -39,7 +39,7 @@ iPhone/iPad/Mac
   -- Bonjour _airplay._tcp / _raop._tcp + AirPlay mirror -->
 AirPlayReceiverHelper.app
   UxPlay 1.73.6 (pin SHA 21eef8d…)
-  VideoToolbox H.264 (FFmpeg fallback in helper)
+  VideoToolbox H.264/HEVC (FFmpeg fallback in helper)
   fdk-aac / AudioConverter → PCM
   -- unix socket, monotonic timestamps, generation id -->
 obs-airplay.plugin
