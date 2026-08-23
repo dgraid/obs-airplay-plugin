@@ -1,5 +1,10 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (state crossfade)
+
+- Plugin crossfades idle stub ↔ live ↔ pause stub in ~300ms (CPU BGRA blend, smoothstep). First paint, canvas resize, language refresh, and `Connecting` stay hard cuts. `airplay_status` still fires immediately. Helper/decoder unchanged.
+- Breaking: no.
+
 ## 2026-08-23 (no lock stub on static screen)
 
 - Helper no longer treats video silence ≥2.5s as Paused. Screen Mirroring stops frames on an idle screen; that is not iPhone lock. Last decoded frame stays. Real lock is still `0x56`/`0x5e` (`video_pause`). Wi-Fi death is still `/feedback` silent ≥8s.

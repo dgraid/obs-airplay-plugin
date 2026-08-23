@@ -13,6 +13,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <csignal>
 #include <cstring>
 #include <mutex>
@@ -100,6 +101,9 @@ bool state_is_live(uint32_t st) { return st == (uint32_t)State::Streaming; }
 bool state_is_connected(uint32_t st) {
   return st == (uint32_t)State::Streaming || st == (uint32_t)State::Paused;
 }
+
+enum class Visual : uint8_t { None, Idle, Live, Pause };
+constexpr uint64_t kFadeNs = 300000000ull;
 
 std::string helper_path() {
   const char *plug = obs_get_module_binary_path(obs_current_module());
@@ -285,7 +289,13 @@ struct Source {
   uint32_t native_w = 0, native_h = 0;
   std::chrono::steady_clock::time_point last_start;
   int restarts = 0;
+  std::vector<uint8_t> dest;
   std::vector<uint8_t> frame;
+  std::vector<uint8_t> fade_from;
+  Visual visual = Visual::None;
+  bool fade_on = false;
+  uint64_t fade_t0 = 0;
+  uint64_t last_emit_ns = 0;
   std::vector<float> pcm;
 
   void close_fds() {
@@ -415,25 +425,89 @@ struct Source {
     obs_queue_task(OBS_TASK_UI, status_job_run, job, false);
   }
 
-  void present_letterboxed(const uint8_t *src, uint32_t sw, uint32_t sh, uint64_t ts) {
+  void emit_video_locked(uint8_t *data, uint64_t ts) {
+    if (!data || width < 1 || height < 1)
+      return;
+    obs_source_frame f{};
+    f.data[0] = data;
+    f.linesize[0] = width * 4;
+    f.width = width;
+    f.height = height;
+    f.format = VIDEO_FORMAT_BGRA;
+    f.timestamp = ts;
+    f.full_range = true;
+    obs_source_output_video(source, &f);
+    last_emit_ns = os_gettime_ns();
+  }
+
+  void cancel_fade_locked() {
+    fade_on = false;
+    fade_from.clear();
+  }
+
+  void start_fade_locked(Visual to) {
+    if (to == visual)
+      return;
+    const bool had = visual != Visual::None && !dest.empty() && width > 0 && height > 0;
+    visual = to;
+    if (!had)
+      return;
+    const size_t n = (size_t)width * height * 4;
+    if (fade_on && frame.size() == n)
+      fade_from = frame;
+    else if (dest.size() == n)
+      fade_from = dest;
+    else {
+      cancel_fade_locked();
+      return;
+    }
+    fade_t0 = os_gettime_ns();
+    fade_on = true;
+  }
+
+  void mix_and_emit_locked(uint64_t ts) {
+    const size_t n = (size_t)width * height * 4;
+    if (dest.size() != n || n == 0)
+      return;
+    if (!fade_on || fade_from.size() != n) {
+      cancel_fade_locked();
+      emit_video_locked(dest.data(), ts);
+      return;
+    }
+    const uint64_t now = os_gettime_ns();
+    const uint64_t elapsed = now >= fade_t0 ? now - fade_t0 : 0;
+    if (elapsed >= kFadeNs) {
+      cancel_fade_locked();
+      emit_video_locked(dest.data(), ts);
+      return;
+    }
+    float t = (float)elapsed / (float)kFadeNs;
+    t = t * t * (3.f - 2.f * t);
+    uint32_t a = (uint32_t)(t * 256.f + 0.5f);
+    if (a > 256)
+      a = 256;
+    const uint32_t ia = 256 - a;
+    frame.resize(n);
+    const uint8_t *from = fade_from.data();
+    const uint8_t *to = dest.data();
+    uint8_t *out = frame.data();
+    for (size_t i = 0; i < n; ++i)
+      out[i] = (uint8_t)((from[i] * ia + to[i] * a) >> 8);
+    emit_video_locked(out, ts);
+  }
+
+  void present_letterboxed(const uint8_t *src, uint32_t sw, uint32_t sh, uint64_t ts, Visual kind) {
     if (!src || sw < 1 || sh < 1)
       return;
     uint32_t cw = 0, ch = 0;
     canvas_size(max_w, max_h, cw, ch);
     std::lock_guard<std::mutex> lock(mu);
-    frame.resize((size_t)cw * ch * 4);
-    letterbox_bgra(src, sw, sh, frame.data(), cw, ch);
+    start_fade_locked(kind);
+    dest.resize((size_t)cw * ch * 4);
+    letterbox_bgra(src, sw, sh, dest.data(), cw, ch);
     width = cw;
     height = ch;
-    obs_source_frame f{};
-    f.data[0] = frame.data();
-    f.linesize[0] = cw * 4;
-    f.width = cw;
-    f.height = ch;
-    f.format = VIDEO_FORMAT_BGRA;
-    f.timestamp = ts;
-    f.full_range = true;
-    obs_source_output_video(source, &f);
+    mix_and_emit_locked(ts);
   }
 
   void push_stub() {
@@ -443,18 +517,11 @@ struct Source {
     if (pixels.empty())
       return;
     std::lock_guard<std::mutex> lock(mu);
-    frame = std::move(pixels);
+    start_fade_locked(Visual::Idle);
+    dest = std::move(pixels);
     width = cw;
     height = ch;
-    obs_source_frame f{};
-    f.data[0] = frame.data();
-    f.linesize[0] = cw * 4;
-    f.width = cw;
-    f.height = ch;
-    f.format = VIDEO_FORMAT_BGRA;
-    f.timestamp = os_gettime_ns();
-    f.full_range = true;
-    obs_source_output_video(source, &f);
+    mix_and_emit_locked(os_gettime_ns());
   }
 
   void push_pause_stub() {
@@ -471,7 +538,7 @@ struct Source {
     auto pixels = render_pause_stub(sw, sh, pause_stub_copy());
     if (pixels.empty())
       return;
-    present_letterboxed(pixels.data(), sw, sh, os_gettime_ns());
+    present_letterboxed(pixels.data(), sw, sh, os_gettime_ns(), Visual::Pause);
   }
 
   void show_placeholder() {
@@ -505,7 +572,7 @@ struct Source {
       native_w = h.width;
       native_h = h.height;
     }
-    present_letterboxed(bgra.data(), h.width, h.height, h.timestamp_ns);
+    present_letterboxed(bgra.data(), h.width, h.height, h.timestamp_ns, Visual::Live);
   }
 
   void output_audio(const Header &h, const std::vector<uint8_t> &bytes) {
@@ -667,13 +734,33 @@ struct Source {
   void tick_canvas() {
     uint32_t cw = 0, ch = 0;
     canvas_size(max_w, max_h, cw, ch);
-    if (cw == width && ch == height)
+    bool rebuild = false;
+    bool pump = false;
+    {
+      std::lock_guard<std::mutex> lock(mu);
+      if (cw != width || ch != height) {
+        cancel_fade_locked();
+        rebuild = true;
+      } else if (fade_on) {
+        const uint64_t now = os_gettime_ns();
+        if (last_emit_ns == 0 || now - last_emit_ns >= 8000000ull)
+          pump = true;
+      }
+    }
+    if (rebuild) {
+      if (last_state.load() != (uint32_t)State::Streaming)
+        show_placeholder();
+      else {
+        std::lock_guard<std::mutex> lock(mu);
+        width = cw;
+        height = ch;
+      }
       return;
-    if (last_state.load() != (uint32_t)State::Streaming)
-      show_placeholder();
-    else {
-      width = cw;
-      height = ch;
+    }
+    if (pump) {
+      std::lock_guard<std::mutex> lock(mu);
+      if (fade_on)
+        mix_and_emit_locked(os_gettime_ns());
     }
   }
 };

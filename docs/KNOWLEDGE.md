@@ -14,7 +14,7 @@ Not Zoom. `airhost.app` was audited read-only (`docs/ZOOM_AIRHOST_AUDIT.md`). Do
 
 | Binary | Owns |
 |---|---|
-| `obs-airplay.plugin` | Tools window, helper supervisor, unix-socket ingest, idle stub, canvas letterbox, `obs_source_output_video/audio`, `airplay_status` |
+| `obs-airplay.plugin` | Tools window, helper supervisor, unix-socket ingest, idle stub, canvas letterbox, ~300ms state crossfade, `obs_source_output_video/audio`, `airplay_status` |
 | `AirPlayReceiverHelper.app` | Bonjour, UxPlay RAOP/AirPlay, decrypt, VideoToolbox (+ FFmpeg fallback), AAC-ELD |
 
 Installed layout:
@@ -48,7 +48,7 @@ Helper `send_state` skips duplicate states. `video_resume` does **not** set Stre
 - Tools → AirPlay Receiver: stub language `ru`/`en`, on-connect / on-disconnect scene names. Stored in module config `obs-airplay.json` (not source settings).
 - `connected == Streaming || Paused`. Handshake `Connecting` is not connected. Stop Mirroring **or** Wi-Fi/client gone (`/feedback` silent ≥8s) = disconnect. iPhone lock = Paused (still connected) so on-disconnect scene must **not** fire.
 - Signal: `airplay_status` on `obs_get_signal_handler()` (`ptr source`, `bool connected`). Proc: `get_airplay_status`.
-- Source size (OBS) stays canvas. Live frames contain-scaled with black bars. Idle (no session) = connect instructions at canvas size. **Paused** = lock-specific stub at last iPhone native WxH, letterboxed into the same canvas (phone rectangle does not jump to 16:9). Never a frozen last frame.
+- Source size (OBS) stays canvas. Live frames contain-scaled with black bars. Idle (no session) = connect instructions at canvas size. **Paused** = lock-specific stub at last iPhone native WxH, letterboxed into the same canvas (phone rectangle does not jump to 16:9). Never a frozen last frame. Visual idle/live/pause **crossfade ~300ms** in the plugin; status signal is immediate.
 - Audio pad `audio_gain_db` default −6. iPhone volume is not capture level (`SET_PARAMETER volume` ignored; feature bit 3 off).
 - Helper starts on source **activate**, stops on **deactivate**. Persistent random MAC in source settings `device_mac`.
 - Restart backoff: 0.5s … cap 8s; max 10 / 30s then Failed. Kill helper ≠ kill OBS.
@@ -135,7 +135,7 @@ Owner chats only. Agent writes code, builds, quits/reinstalls/relaunches OBS, ru
 
 | Path | Role |
 |---|---|
-| `src/plugin/` | OBS module: `plugin.cpp`, idle stub, Tools (`tools_dialog.mm`), `module_settings.*` |
+| `src/plugin/` | OBS module: `plugin.cpp` (incl. state crossfade), idle stub, Tools (`tools_dialog.mm`), `module_settings.*` |
 | `src/helper/` | `main.cpp` (UxPlay callbacks, IPC), `video_decoder.*`, `audio_decoder.*` |
 | `src/common/ipc.hpp` | Header + State enum |
 | `third_party/UxPlay/` | Submodule; local prepend patch |

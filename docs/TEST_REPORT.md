@@ -27,5 +27,6 @@ Date: 2026-08-23. Host: macOS 26.6 arm64, OBS 32.2.2.
 | 18 | Conflict vs macOS AirPlay Receiver / Zoom AirHost | **PASS** (coexist) | **Fact:** OS `MacBook Air (2)`, LG TV, `Зал` advertised at once with OBS. Not a bind/mDNS exclusive. Pick the OBS name. |
 | 19 | Zoom AirHost idle audit | **PASS** | `docs/ZOOM_AIRHOST_AUDIT.md` |
 | 20 | Zoom AirHost live ports/TXT | **PASS** | parent=`zoom.us`; TCP 50000+8888; TXT `model=AppleTV3,2` `srcvers=220.68`. Do **not** copy TXT. |
+| 21 | State crossfade ~300ms | **BLOCKED** | Plugin CPU blend. Needs owner: connect / lock / unlock / Stop Mirroring fade, no black flash, scenes still switch instantly. |
 
 Unexecuted tests are **BLOCKED**, not pass.
