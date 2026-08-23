@@ -40,7 +40,7 @@ Not a Zoom product. Zoom `airhost.app` was audited read-only as a process-isolat
 - No AirPlay session: source renders a full-canvas instruction stub (OBS canvas size). Last mirror frame is discarded on stop.
 - Streaming: helper BGRA is contain-scaled into the same canvas (black bars).
 - `connected` is true only in `Streaming`. Lua listens to `airplay_status` (see `docs/DECISIONS.md`).
-- Receiver name, stub language, and scene automation: Tools → AirPlay Receiver (window). Stored in `obs-airplay.json`.
+- AirPlay Bonjour name = OBS source name (rename the source to rename the receiver). Stub language and scene automation: Tools → AirPlay Receiver. Stored in `obs-airplay.json`.
 - Audio: AAC-ELD → float, pad `audio_gain_db` (default −6 dB). iPhone volume buttons are not capture level; ride the OBS mixer.
 
 ## Status (2026-08-23)

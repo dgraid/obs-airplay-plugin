@@ -9,7 +9,7 @@ Not a Zoom AirHost clone. Zoom was audited read-only. See `docs/ZOOM_AIRHOST_AUD
 - macOS 13+ Apple Silicon (`arm64`)
 - OBS Studio 32.2.2 arm64 (`/Applications/OBS.app`)
 - iPhone/iPad/Mac on the same LAN
-- Built-in **AirPlay Receiver** can stay on. iPhone will show several names — pick **OBS AirPlay**, not `MacBook Air`. Zoom Share iPhone at the same time only clutters the picker.
+- Built-in **AirPlay Receiver** can stay on. iPhone will show several names — pick the OBS source name (default **AirPlay Receiver**), not `MacBook Air`. Zoom Share iPhone at the same time only clutters the picker.
 
 ## Install
 
@@ -28,8 +28,8 @@ Same destination. Quit OBS first. No sudo.
 ## Use
 
 1. OBS → Sources → **+** → **AirPlay Receiver**
-2. Set receiver name (default `OBS AirPlay`)
-3. On iPhone: Control Center → Screen Mirroring → that name
+2. Rename the source if you want a custom AirPlay name (default `AirPlay Receiver`, second source `AirPlay Receiver 2`)
+3. On iPhone: Control Center → Screen Mirroring → that source name
 4. Video + audio should appear on the source. Audio pad defaults to **−6 dB** (source properties). iPhone volume buttons do not change capture level — use this pad and the OBS mixer.
 
 Killing the helper must not crash OBS; the plugin restarts it with backoff if “Restart helper on crash” is on.

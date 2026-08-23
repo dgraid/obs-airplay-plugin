@@ -1,5 +1,11 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (source name = AirPlay name)
+
+- Bonjour / Screen Mirroring name is the OBS source name (`AirPlay Receiver`, `AirPlay Receiver 2`, or whatever you rename it to). Tools no longer has a receiver-name field.
+- Rename while live restarts that source's helper (AirPlay session drops). Idle stub quotes the same name.
+- Breaking: old Tools name (`OBS AirPlay`) is ignored. Rename the source if you want that string back.
+
 ## 2026-08-23 (unsigned .pkg)
 
 - `scripts/package_pkg.sh` builds `dist/obs-airplay-0.2.0-macos-arm64.pkg` (productbuild, currentUserHome only, hostArchitectures=arm64).

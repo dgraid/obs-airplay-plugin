@@ -54,7 +54,6 @@ void fill_scenes(NSPopUpButton *popup, const std::string &selected) {
 
 @interface AirPlaySettingsWindow : NSObject <NSWindowDelegate>
 @property(nonatomic, strong) NSWindow *window;
-@property(nonatomic, strong) NSTextField *nameField;
 @property(nonatomic, strong) NSPopUpButton *langPopup;
 @property(nonatomic, strong) NSTextField *statusValue;
 @property(nonatomic, strong) NSPopUpButton *connectScene;
@@ -72,7 +71,6 @@ void fill_scenes(NSPopUpButton *popup, const std::string &selected) {
 
 - (void)loadFromSettings {
   ModuleSettings &st = module_settings();
-  self.nameField.stringValue = @(st.receiver_name.c_str());
   [self.langPopup selectItemAtIndex:language_is_en(st.language) ? 1 : 0];
   fill_scenes(self.connectScene, st.on_connect_scene);
   fill_scenes(self.disconnectScene, st.on_disconnect_scene);
@@ -83,10 +81,11 @@ void fill_scenes(NSPopUpButton *popup, const std::string &selected) {
   if (self.window)
     return;
 
-  NSTextField *nameLbl = make_label("Tools.ReceiverName", false);
-  NSTextField *nameField = [[NSTextField alloc] initWithFrame:NSZeroRect];
-  nameField.placeholderString = @"OBS AirPlay";
-  self.nameField = nameField;
+  NSTextField *helpName = [NSTextField wrappingLabelWithString:@(obs_module_text("Tools.Help"))];
+  helpName.alignment = NSTextAlignmentLeft;
+  helpName.textColor = NSColor.secondaryLabelColor;
+  helpName.preferredMaxLayoutWidth = 420;
+  NSView *helpNamePad = [[NSView alloc] initWithFrame:NSZeroRect];
 
   NSTextField *langLbl = make_label("Tools.Language", false);
   NSPopUpButton *lang = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
@@ -118,7 +117,7 @@ void fill_scenes(NSPopUpButton *popup, const std::string &selected) {
   NSView *helpPad = [[NSView alloc] initWithFrame:NSZeroRect];
 
   NSGridView *grid = [NSGridView gridViewWithViews:@[
-    @[ nameLbl, nameField ],
+    @[ helpName, helpNamePad ],
     @[ langLbl, lang ],
     @[ statusLbl, statusVal ],
     @[ autoHdr, autoPad ],
@@ -132,6 +131,7 @@ void fill_scenes(NSPopUpButton *popup, const std::string &selected) {
   [grid columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
   [grid columnAtIndex:1].xPlacement = NSGridCellPlacementFill;
   [grid columnAtIndex:1].width = 260;
+  [grid mergeCellsInHorizontalRange:NSMakeRange(0, 2) verticalRange:NSMakeRange(0, 1)];
   [grid mergeCellsInHorizontalRange:NSMakeRange(0, 2) verticalRange:NSMakeRange(3, 1)];
   [grid mergeCellsInHorizontalRange:NSMakeRange(0, 2) verticalRange:NSMakeRange(6, 1)];
 
@@ -166,7 +166,7 @@ void fill_scenes(NSPopUpButton *popup, const std::string &selected) {
     [buttons.bottomAnchor constraintEqualToAnchor:cv.bottomAnchor constant:-20],
   ]];
 
-  NSWindow *w = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 500, 340)
+  NSWindow *w = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 500, 360)
                                             styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
                                               backing:NSBackingStoreBuffered
                                                 defer:NO];
@@ -207,17 +207,11 @@ void fill_scenes(NSPopUpButton *popup, const std::string &selected) {
 - (void)ok:(id)sender {
   (void)sender;
   ModuleSettings &st = module_settings();
-  std::string name = self.nameField.stringValue.UTF8String ? self.nameField.stringValue.UTF8String : "";
-  while (!name.empty() && (name.back() == ' ' || name.back() == '\t'))
-    name.pop_back();
-  if (name.empty())
-    name = "OBS AirPlay";
-  st.receiver_name = std::move(name);
   st.language = popup_string(self.langPopup) == "en" ? "en" : "ru";
   st.on_connect_scene = popup_string(self.connectScene);
   st.on_disconnect_scene = popup_string(self.disconnectScene);
   module_settings_save();
-  airplay_apply_receiver_name();
+  airplay_refresh_idle_stubs();
   [self stopTimer];
   [self.window orderOut:nil];
 }

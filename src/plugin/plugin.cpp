@@ -48,6 +48,28 @@ namespace {
 constexpr double kAudioGainDbMin = -24.0;
 constexpr double kAudioGainDbMax = 0.0;
 constexpr double kAudioGainDbDefault = -6.0;
+constexpr size_t kAirPlayNameMaxBytes = 63;
+
+std::string airplay_name_from_utf8(const char *raw) {
+  std::string s = raw ? raw : "";
+  while (!s.empty() && (s.front() == ' ' || s.front() == '\t'))
+    s.erase(s.begin());
+  while (!s.empty() && (s.back() == ' ' || s.back() == '\t'))
+    s.pop_back();
+  if (s.empty())
+    s = "AirPlay Receiver";
+  if (s.size() <= kAirPlayNameMaxBytes)
+    return s;
+  size_t i = kAirPlayNameMaxBytes;
+  while (i > 0 && (static_cast<unsigned char>(s[i]) & 0xC0) == 0x80)
+    --i;
+  s.resize(i);
+  return s;
+}
+
+std::string airplay_name_from_source(obs_source_t *src) {
+  return airplay_name_from_utf8(src ? obs_source_get_name(src) : nullptr);
+}
 
 float audio_gain_lin_from_db(double db) {
   db = std::clamp(db, kAudioGainDbMin, kAudioGainDbMax);
@@ -212,7 +234,7 @@ void status_job_run(void *p) {
 
 struct Source {
   obs_source_t *source = nullptr;
-  std::string name = "OBS AirPlay";
+  std::string name = "AirPlay Receiver";
   std::string device_mac;
   int max_w = 1920, max_h = 1080, max_fps = 30;
   bool audio = true;
@@ -351,7 +373,8 @@ struct Source {
     conn_fd = accept(listen_fd, nullptr, nullptr);
     if (conn_fd < 0)
       return false;
-    blog(LOG_INFO, "[obs-airplay] helper pid=%d socket=%s gen=%u", (int)pid, sock_path.c_str(), generation);
+    blog(LOG_INFO, "[obs-airplay] helper pid=%d name=\"%s\" socket=%s gen=%u", (int)pid, name.c_str(),
+         sock_path.c_str(), generation);
     return true;
   }
 
@@ -526,6 +549,7 @@ struct Source {
   void start() {
     if (run.load())
       return;
+    name = airplay_name_from_source(source);
     run = true;
     apply_state((uint32_t)State::Starting);
     if (spawn())
@@ -551,16 +575,16 @@ struct Source {
   }
 
   void on_receiver_name(const std::string &n) {
-    if (n.empty())
+    if (n.empty() || n == name)
       return;
-    bool restart = n != name && run.load();
-    name = n;
-    if (restart) {
+    bool restart = run.load();
+    if (restart)
       stop();
+    name = n;
+    if (restart)
       start();
-    } else if (last_state.load() != (uint32_t)State::Streaming) {
+    else if (last_state.load() != (uint32_t)State::Streaming)
       push_stub();
-    }
   }
 
   void tick_canvas() {
@@ -577,6 +601,11 @@ struct Source {
   }
 };
 
+void on_source_rename(void *data, calldata_t *cd) {
+  auto *s = static_cast<Source *>(data);
+  s->on_receiver_name(airplay_name_from_utf8(calldata_string(cd, "new_name")));
+}
+
 std::mutex g_sources_mu;
 std::vector<Source *> g_sources;
 
@@ -591,10 +620,7 @@ const char *get_name(void *) { return obs_module_text("AirPlay"); }
 void *create(obs_data_t *settings, obs_source_t *source) {
   auto *s = new Source();
   s->source = source;
-  const char *old_name = obs_data_get_string(settings, "server_name");
-  if (module_settings_migrate_server_name(old_name))
-    module_settings_save();
-  s->name = module_settings().receiver_name;
+  s->name = airplay_name_from_source(source);
   s->max_w = (int)obs_data_get_int(settings, "max_width");
   s->max_h = (int)obs_data_get_int(settings, "max_height");
   s->max_fps = (int)obs_data_get_int(settings, "max_fps");
@@ -620,6 +646,7 @@ void *create(obs_data_t *settings, obs_source_t *source) {
   signal_handler_add(obs_source_get_signal_handler(source), "void airplay_status(bool connected)");
   proc_handler_add(obs_source_get_proc_handler(source), "void get_airplay_status(out bool connected)",
                    proc_get_airplay_status, s);
+  signal_handler_connect(obs_source_get_signal_handler(source), "rename", on_source_rename, s);
 
   {
     std::lock_guard<std::mutex> lock(g_sources_mu);
@@ -641,6 +668,7 @@ void deactivate(void *data) { ((Source *)data)->stop(); }
 
 void destroy(void *data) {
   auto *s = (Source *)data;
+  signal_handler_disconnect(obs_source_get_signal_handler(s->source), "rename", on_source_rename, s);
   {
     std::lock_guard<std::mutex> lock(g_sources_mu);
     g_sources.erase(std::remove(g_sources.begin(), g_sources.end(), s), g_sources.end());
@@ -670,6 +698,7 @@ obs_properties_t *get_properties(void *data) {
   bool on = s && s->last_state.load() == (uint32_t)State::Streaming;
   obs_properties_add_text(p, "connection_status", obs_module_text(on ? "Status.Connected" : "Status.Waiting"),
                           OBS_TEXT_INFO);
+  obs_properties_add_text(p, "name_hint", obs_module_text("Prop.NameHint"), OBS_TEXT_INFO);
   obs_properties_add_int(p, "max_width", obs_module_text("Prop.MaxWidth"), 640, 3840, 2);
   obs_properties_add_int(p, "max_height", obs_module_text("Prop.MaxHeight"), 360, 2160, 2);
   obs_properties_add_int(p, "max_fps", obs_module_text("Prop.MaxFps"), 15, 60, 1);
@@ -685,6 +714,7 @@ obs_properties_t *get_properties(void *data) {
 void save_settings(void *, obs_data_t *settings) {
   obs_data_unset_user_value(settings, "connection_status");
   obs_data_unset_user_value(settings, "audio_gain_help");
+  obs_data_unset_user_value(settings, "name_hint");
 }
 
 void update(void *data, obs_data_t *settings) {
@@ -704,7 +734,6 @@ void update(void *data, obs_data_t *settings) {
   s->audio = audio;
   s->auto_restart = ar;
   s->low_latency = ll;
-  s->name = module_settings().receiver_name;
   if (restart && s->run.load()) {
     s->stop();
     s->start();
@@ -736,13 +765,6 @@ obs_source_info make_info() {
 
 } // namespace
 
-void airplay_apply_receiver_name() {
-  std::string name = module_settings().receiver_name;
-  std::lock_guard<std::mutex> lock(g_sources_mu);
-  for (auto *s : g_sources)
-    s->on_receiver_name(name);
-}
-
 bool airplay_any_connected() {
   std::lock_guard<std::mutex> lock(g_sources_mu);
   for (auto *s : g_sources) {
@@ -750,6 +772,18 @@ bool airplay_any_connected() {
       return true;
   }
   return false;
+}
+
+void airplay_refresh_idle_stubs() {
+  std::vector<Source *> copy;
+  {
+    std::lock_guard<std::mutex> lock(g_sources_mu);
+    copy = g_sources;
+  }
+  for (auto *s : copy) {
+    if (s->last_state.load() != (uint32_t)State::Streaming)
+      s->push_stub();
+  }
 }
 
 bool obs_module_load(void) {
