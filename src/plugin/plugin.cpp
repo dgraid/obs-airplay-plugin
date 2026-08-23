@@ -263,12 +263,32 @@ struct Source {
       }
     }
     last_state.store((uint32_t)State::Disconnected);
+    if (conn_fd >= 0) {
+      close(conn_fd);
+      conn_fd = -1;
+    }
     obs_source_output_video(source, nullptr);
+  }
+
+  bool helper_alive() {
+    if (helper_pid <= 0)
+      return false;
+    int st = 0;
+    pid_t r = waitpid(helper_pid, &st, WNOHANG);
+    if (r == helper_pid) {
+      helper_pid = -1;
+      return false;
+    }
+    if (kill(helper_pid, 0) != 0) {
+      helper_pid = -1;
+      return false;
+    }
+    return true;
   }
 
   void supervisor_loop() {
     while (run.load()) {
-      if (conn_fd < 0 || (helper_pid > 0 && kill(helper_pid, 0) != 0)) {
+      if (conn_fd < 0 || !helper_alive()) {
         stop_helper();
         close_fds();
         if (!auto_restart) {
@@ -300,13 +320,12 @@ struct Source {
   }
 
   void start() {
+    if (run.load())
+      return;
     run = true;
     last_state.store((uint32_t)State::Starting);
-    if (!spawn()) {
-      last_state.store((uint32_t)State::Failed);
-      return;
-    }
-    reader = std::thread([this] { reader_loop(); });
+    if (spawn())
+      reader = std::thread([this] { reader_loop(); });
     supervisor = std::thread([this] { supervisor_loop(); });
   }
 
@@ -343,9 +362,16 @@ void *create(obs_data_t *settings, obs_source_t *source) {
     s->max_h = 1080;
   if (s->max_fps <= 0)
     s->max_fps = 30;
-  s->start();
   return s;
 }
+
+void activate(void *data) {
+  auto *s = (Source *)data;
+  if (!s->run.load())
+    s->start();
+}
+
+void deactivate(void *data) { ((Source *)data)->stop(); }
 
 void destroy(void *data) {
   auto *s = (Source *)data;
@@ -396,7 +422,7 @@ void update(void *data, obs_data_t *settings) {
   s->audio = audio;
   s->auto_restart = ar;
   s->low_latency = ll;
-  if (restart) {
+  if (restart && s->run.load()) {
     s->stop();
     s->start();
   }
@@ -410,6 +436,8 @@ obs_source_info make_info() {
   info.get_name = get_name;
   info.create = create;
   info.destroy = destroy;
+  info.activate = activate;
+  info.deactivate = deactivate;
   info.get_width = get_width;
   info.get_height = get_height;
   info.get_defaults = get_defaults;

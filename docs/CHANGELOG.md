@@ -1,5 +1,12 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23
+
+- Helper launches on source **activate**, stops on **deactivate** (not at OBS start).
+- Supervisor reaps helper via `waitpid` (macOS zombies still `kill(pid,0)`-alive).
+- Supervisor retries spawn if the first helper start fails.
+- Docs: `DECISIONS.md`, `PROJECT_CONTEXT.md`; UxPlay recorded as a git submodule pin.
+
 - Replaced Coddle with CMake (OBS plugin template layout, no Qt/CI).
 - Split process: `AirPlayReceiverHelper.app` owns UxPlay + decode; OBS plugin is supervisor + IPC ingest.
 - UxPlay **shipping pin** v1.73.6 `21eef8df25d91e12635c36d8176ad192725baca2` (not the 2022 submodule).

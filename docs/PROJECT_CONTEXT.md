@@ -1,0 +1,42 @@
+# Project context
+
+See `docs/PROJECT_CONTEXT.md` (same content; this filename is the repo convention from the operator rules).
+
+## What this is
+
+AirPlay **receiver** for OBS Studio 32.2.2 on Apple Silicon. iPhone/iPad/Mac Screen Mirroring appears as an OBS source with video + audio.
+
+Not a Zoom product. Zoom `airhost.app` was audited read-only as a process-isolation reference.
+
+## Entities
+
+| Name | Role |
+|---|---|
+| `obs-airplay.plugin` | Thin OBS module: settings, helper supervisor, IPC ingest, `obs_source_output_video/audio` |
+| `AirPlayReceiverHelper.app` | Nested helper: Bonjour, RAOP/AirPlay (UxPlay), decrypt, decode |
+| IPC | 48-byte header + payload on a unix socket under `/tmp/obs-airplay-<pid>-<ptr>.sock` |
+| UxPlay 1.73.6 | Protocol stack, compiled static into the helper only |
+
+## Layout (installed)
+
+```
+~/Library/Application Support/obs-studio/plugins/obs-airplay.plugin/
+  Contents/MacOS/obs-airplay
+  Contents/Resources/AirPlayReceiverHelper.app/
+    Contents/MacOS/AirPlayReceiverHelper
+    Contents/Frameworks/   # FFmpeg, fdk-aac, … @loader_path
+```
+
+## Constraints
+
+- macOS 13+, **arm64 only**. Intel Homebrew `/usr/local` is forbidden for this build.
+- Do not disable SIP / Gatekeeper / hardened runtime.
+- Do not write into `/Applications/OBS.app` except the agreed OBS 32.2.2 app itself.
+- Success is load + discovery + real A/V + reconnect + helper death ≠ OBS death. Compile is not success.
+- Tests not run are **BLOCKED**, not pass. See `docs/TEST_REPORT.md`.
+
+## Status (2026-08-23)
+
+Shippable **bundle** exists (arm64, rpath, ad-hoc sign, ZIP). Plugin **loads** in OBS 32.2.2.
+
+Still **BLOCKED** without the owner: Zoom `--live` audit, iPhone Screen Mirroring loop, kill-helper-while-streaming, 2h soak, create/delete in the UI.

@@ -18,7 +18,7 @@ Each finding is tagged **Fact** / **Inference** / **Unknown**.
 
 **Fact (idle):** no `airhost` process while Zoom is not sharing.
 
-**Unknown (live):** Zoom meeting + Share → iPhone/iPad via AirPlay was not running during this pass. Re-run `scripts/audit_zoom_airhost.sh --live` while the AirPlay instructions are on screen. Expected Fact: `ppid` of `airhost` is a Zoom process.
+**Fact (live, 2026-08-23 12:48):** `airhost` PPID is `zoom.us` (pid 26551). argv: `-pid 26551 -evtname airhost26551 -key <number>`. Launch is by the Zoom main process, not launchd.
 
 ## 3. Architectures?
 
@@ -58,13 +58,15 @@ Nested copies inside `airhost.app/Contents/Frameworks/`: FFmpeg 5 dylibs + `libz
 
 ## 6. TCP/UDP ports while sharing?
 
-**Unknown:** live `lsof` not collected (airhost not running). Idle has no listen sockets.
+**Fact (live):** `lsof -nP` on airhost: TCP `*:50000` and `*:8888` LISTEN on IPv4 and IPv6. No UDP sockets visible in that snapshot. Bonjour `_airplay._tcp` instance `Zoom-MacBook Air (2)` resolves to `MacBook-Air-2.local.:50000`.
 
 ## 7. Bonjour types and TXT?
 
 **Fact (binary strings):** service type names `_airplay._tcp` and `_raop._tcp`, plus `txtAirPlay`, `BonjourHandler`.
 
-**Unknown:** advertised instance name and TXT keys while live. Must be captured with `dns-sd -B` during `--live`.
+**Fact (live):** `_airplay._tcp` instance `Zoom-MacBook Air (2)`. TXT: `deviceid`, `features=0x5A7FFFF7,0xC`, `flags=0x44`, `model=AppleTV3,2`, `osvers=8.4.3`, `pk=…`, `srcvers=220.68`, `vv=2`. `_raop._tcp` instance `F615734194EB@Zoom-MacBook Air (2)` on the same host:50000 (`am=AppleTV3,2`, `cn=0,1,2,3`, `et=0,3,5`, `tp=UDP`, `vs=220.68`).
+
+**Inference:** Zoom spoofs an Apple TV 3-era receiver (FairPlay `pk` / `srcvers 220.68`). That is **not** a license to copy their TXT or identity into our helper.
 
 ## 8. Own window?
 
@@ -78,7 +80,9 @@ Nested copies inside `airhost.app/Contents/Frameworks/`: FFmpeg 5 dylibs + `libz
 
 **Fact:** `shm_open`/`mmap` imported; rpath into parent Zoom Frameworks; private `nydus`/`tp`/`util` frameworks.
 
-**Unknown:** XPC service names, shared-memory layout, IOSurface handshake. Not claimed.
+**Fact (live):** two unix-domain sockets from airhost to another process (likely Zoom). Strings include `IOSurface` / `setIOSurface:` / `retainedIOSurfaceForAssetKey`.
+
+**Unknown:** exact shared-memory layout and whether the unix sockets carry frames vs control. Not claimed.
 
 ## 10. What happens if AirHost exits normally?
 
@@ -102,10 +106,8 @@ Nested copies inside `airhost.app/Contents/Frameworks/`: FFmpeg 5 dylibs + `libz
 
 ## Live pass
 
-**Status: BLOCKED** — user action: start a Zoom meeting, Share → iPhone/iPad via AirPlay, leave the instruction UI up, then:
+**Status: DONE (read-only)** — 2026-08-23 12:48, Zoom 6.7.7, airhost pid 26650, parent zoom.us 26551.
 
-```bash
-./scripts/audit_zoom_airhost.sh --live
-```
+Stop-share / normal AirHost exit still **Unknown** (not exercised; `kill -9` forbidden).
 
-Idle transcript: captured 2026-08-23 on this machine.
+Idle + live transcripts: this machine, 2026-08-23.

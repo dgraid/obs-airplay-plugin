@@ -45,7 +45,10 @@ def main():
     mapping = {}
     for src in deps:
         dst = os.path.join(fw, os.path.basename(src))
+        if os.path.exists(dst):
+            os.chmod(dst, 0o755)
         shutil.copy2(src, dst)
+        os.chmod(dst, 0o755)
         mapping[src] = dst
         subprocess.check_call(["install_name_tool", "-id", f"@loader_path/../Frameworks/{os.path.basename(src)}", dst])
     def rewrite(target):
