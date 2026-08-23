@@ -1,0 +1,36 @@
+AirPlay Receiver for OBS
+https://github.com/ (repo URL after first push)
+
+This product is a fork/rewrite of obs-airplay and bundles other works.
+
+obs-airplay
+  Copyright (c) mika314 and contributors
+  https://github.com/mika314/obs-airplay
+  License: GPL-2.0
+
+UxPlay
+  Copyright (c) UxPlay authors (FDH2/UxPlay, formerly antimof/UxPlay)
+  https://github.com/FDH2/UxPlay
+  License: GPL-3.0
+  Lineage includes RPiPlay, shairplay, playfair, and related AirPlay receiver code.
+  Full text: third_party/UxPlay/LICENSE
+
+OBS Studio (libobs / obs-frontend-api)
+  Copyright (c) OBS Project contributors
+  https://github.com/obsproject/obs-studio
+  License: GPL-2.0
+
+libplist
+  https://github.com/libimobiledevice/libplist
+
+FFmpeg (helper process only, bundled dylibs)
+  https://ffmpeg.org/
+
+Fraunhofer FDK AAC (bundled dylib)
+  Not GPL. See the FDK AAC license in the Homebrew/fdk-aac package.
+
+OpenSSL (static into the UxPlay/helper build)
+  https://www.openssl.org/
+
+Zoom AirHost was inspected read-only as a process-isolation reference.
+This repository does not include Zoom binaries, assets, or trademarks.
