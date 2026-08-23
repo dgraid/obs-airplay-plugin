@@ -46,7 +46,7 @@ Helper `send_state` skips duplicate states. `video_resume` does **not** set Stre
 
 - AirPlay picker name = **OBS source name** (default `AirPlay Receiver`, second source `AirPlay Receiver 2`). Rename live → helper restarts, session drops.
 - Tools → AirPlay Receiver: stub language `ru`/`en`, on-connect / on-disconnect scene names. Stored in module config `obs-airplay.json` (not source settings).
-- `connected == Streaming || Paused`. Handshake `Connecting` is not connected. Stop Mirroring = disconnect. iPhone lock = Paused (still connected) so on-disconnect scene must **not** fire.
+- `connected == Streaming || Paused`. Handshake `Connecting` is not connected. Stop Mirroring **or** Wi-Fi/client gone (`/feedback` silent ≥8s) = disconnect. iPhone lock = Paused (still connected) so on-disconnect scene must **not** fire.
 - Signal: `airplay_status` on `obs_get_signal_handler()` (`ptr source`, `bool connected`). Proc: `get_airplay_status`.
 - Source size (OBS) stays canvas. Live frames contain-scaled with black bars. Idle (no session) = connect instructions at canvas size. **Paused** = lock-specific stub at last iPhone native WxH, letterboxed into the same canvas (phone rectangle does not jump to 16:9). Never a frozen last frame.
 - Audio pad `audio_gain_db` default −6. iPhone volume is not capture level (`SET_PARAMETER volume` ignored; feature bit 3 off).
@@ -64,7 +64,9 @@ iOS mirroring does **not** send lock-screen pixels. UxPlay (`raop_rtp_mirror.c`)
 
 Unlock also sends unencrypted SPS/PPS (`0x16`) and UxPlay **prepends** them to the next encrypted VCL. Screen Mirroring uses a long GOP / intra refresh: wake is usually **P-frames**, not IDR.
 
-Stall fallback: if IPC is Streaming and no video for ≥2.5s (missed `0x56`), helper sends Paused without tearing down the decoder.
+Stall fallback: if IPC is Streaming, no video for ≥2.5s, **and** POST `/feedback` is still arriving, helper sends Paused (missed `0x56`) without tearing down the decoder.
+
+Wi-Fi / network drop: iOS stops `/feedback` (expected every ~2s). Helper has no UxPlay GLib watchdog; it counts silence itself. After **8s** without feedback while Connecting/Streaming/Paused → Discoverable (connect stub), `reset_session`, `raop_remove_known_connections`. Do **not** treat a dead TCP hang as Paused/lock. TCP keepalive can sit for minutes; `conn_destroy`/`conn_reset` often never fire.
 
 **Owner-confirmed:** lock → stub; unlock → live video immediately; no Stop Mirroring.
 

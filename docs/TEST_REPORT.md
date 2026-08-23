@@ -17,7 +17,7 @@ Date: 2026-08-23. Host: macOS 26.6 arm64, OBS 32.2.2.
 | 9b | Audio pad −6 dB: int16 full-scale → float ≈ 0.501 | **PASS** | `audio_gain_lin_from_db(-6)` → 0.501187 |
 | 10 | Rotate / resolution change | **BLOCKED** | needs 8 |
 | 11 | Disconnect/reconnect ≥20 | **BLOCKED** | needs 8 |
-| 12 | Wi-Fi toggle | **BLOCKED** | needs 8 |
+| 12 | Wi-Fi toggle | **BLOCKED** | Owner 2026-08-23: off-Wi-Fi left last frame / did not return to connect stub (missing `/feedback` watchdog). Fix shipped same day; re-check: off Wi-Fi → connect window in ~8s, lock still pause stub. |
 | 13 | Lock iPhone | **PASS** | Owner 2026-08-23 after helper 16:54 install: lock → stub, unlock → live video, no Stop Mirroring. Prior fails were a stale helper (16:36) still in the plugin bundle. |
 | 14 | Kill helper, OBS stays | **PASS** | `kill -9` helper 28789; OBS pid 28640 alive; helper 28938 gen=3 discoverable |
 | 15 | 2h soak CPU/RSS | **BLOCKED** | leave OBS+mirror running 2h |

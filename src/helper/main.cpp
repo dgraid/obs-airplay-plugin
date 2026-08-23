@@ -43,7 +43,15 @@ static VideoDecoder g_vdec;
 static AudioDecoder g_adec;
 static std::string g_name = "OBS AirPlay";
 static std::atomic<uint64_t> g_last_video_ns{0};
+static std::atomic<uint64_t> g_last_feedback_ns{0};
+static std::atomic<int> g_session_open{0};
+static std::atomic<int> g_drop_session{0};
 static std::atomic<uint32_t> g_ipc_state{(uint32_t)State::Starting};
+
+// iPhone lock stops video but keeps POST /feedback (~2s). Wi-Fi death stops both.
+static constexpr uint64_t kStallNs = 2500000000ull;
+static constexpr uint64_t kFeedbackAliveNs = 3000000000ull;
+static constexpr uint64_t kFeedbackDeadNs = 8000000000ull;
 
 static uint64_t now_ns() {
   using namespace std::chrono;
@@ -132,9 +140,29 @@ static void on_log(void *, int, const char *msg) {
     fprintf(stderr, "[helper] %s\n", msg);
 }
 
-static void conn_init(void *) { send_state(State::Connecting); }
-static void conn_destroy(void *) { send_state(State::Discoverable); }
-static void conn_reset(void *, int) { send_state(State::Disconnected); }
+static void request_session_drop(const char *why) {
+  fprintf(stderr, "[helper] drop session: %s\n", why);
+  send_state(State::Discoverable);
+  g_drop_session.store(1, std::memory_order_relaxed);
+}
+
+static void conn_init(void *) {
+  g_session_open.fetch_add(1, std::memory_order_relaxed);
+  g_last_feedback_ns.store(now_ns(), std::memory_order_relaxed);
+  g_last_video_ns.store(0, std::memory_order_relaxed);
+  send_state(State::Connecting);
+}
+static void conn_destroy(void *) {
+  int n = g_session_open.load(std::memory_order_relaxed);
+  if (n > 0)
+    g_session_open.fetch_sub(1, std::memory_order_relaxed);
+  g_last_video_ns.store(0, std::memory_order_relaxed);
+  send_state(State::Discoverable);
+}
+static void conn_reset(void *, int reason) {
+  fprintf(stderr, "[helper] conn_reset reason=%d\n", reason);
+  request_session_drop("conn_reset");
+}
 static void conn_teardown(void *, bool *, bool *) {}
 static void audio_flush(void *) {}
 static void video_flush(void *) { g_vdec.reset_session(); }
@@ -146,16 +174,38 @@ static void video_resume(void *) {
   fprintf(stderr, "[helper] video_resume (client wake)\n");
 }
 static void conn_feedback(void *) {
-  if (g_ipc_state.load(std::memory_order_relaxed) != (uint32_t)State::Streaming)
-    return;
-  uint64_t last = g_last_video_ns.load(std::memory_order_relaxed);
-  if (last == 0)
-    return;
+  g_last_feedback_ns.store(now_ns(), std::memory_order_relaxed);
+}
+
+static void check_session_health() {
   uint64_t now = now_ns();
-  if (now >= last && now - last >= 2500000000ull) {
-    fprintf(stderr, "[helper] video stall >=2.5s, pause\n");
-    send_state(State::Paused);
+  uint32_t st = g_ipc_state.load(std::memory_order_relaxed);
+  if (st == (uint32_t)State::Streaming) {
+    uint64_t last_v = g_last_video_ns.load(std::memory_order_relaxed);
+    uint64_t last_fb = g_last_feedback_ns.load(std::memory_order_relaxed);
+    if (last_v && now >= last_v && now - last_v >= kStallNs) {
+      bool heartbeat_alive =
+          last_fb && now >= last_fb && now - last_fb < kFeedbackAliveNs;
+      if (heartbeat_alive) {
+        fprintf(stderr, "[helper] video stall >=2.5s with heartbeat, pause\n");
+        send_state(State::Paused);
+      }
+    }
   }
+  if (g_session_open.load(std::memory_order_relaxed) > 0 &&
+      (st == (uint32_t)State::Connecting || st == (uint32_t)State::Streaming ||
+       st == (uint32_t)State::Paused)) {
+    uint64_t last_fb = g_last_feedback_ns.load(std::memory_order_relaxed);
+    if (last_fb && now >= last_fb && now - last_fb >= kFeedbackDeadNs)
+      request_session_drop("client feedback silent >=8s");
+  }
+  if (g_drop_session.exchange(0, std::memory_order_relaxed) == 0)
+    return;
+  g_vdec.reset_session();
+  g_last_video_ns.store(0, std::memory_order_relaxed);
+  send_state(State::Discoverable);
+  if (g_raop)
+    raop_remove_known_connections(g_raop);
 }
 static void video_reset(void *, reset_type_t) { g_vdec.reset_session(); }
 static double audio_set_client_volume(void *) { return 0.0; }
@@ -422,8 +472,10 @@ int main(int argc, char **argv) {
   send_state(State::Discoverable);
   warn_other_receivers();
 
-  while (g_run)
-    sleep(1);
+  while (g_run) {
+    usleep(250000);
+    check_session_health();
+  }
 
   send_state(State::Disconnected);
   dnssd_unregister_raop(g_dnssd);

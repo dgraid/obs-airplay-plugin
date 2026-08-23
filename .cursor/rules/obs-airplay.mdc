@@ -14,7 +14,7 @@ Helper + thin plugin. UxPlay + VideoToolbox + FFmpeg stay in `AirPlayReceiverHel
 ## Lock / unlock / GOP
 
 - `0x56`/`0x5e` → Paused + lock stub at last iPhone size (letterboxed). `0x16`/`0x1e` → resume; next successful decode → Streaming.
-- `connected == Streaming || Paused`. Lock is not disconnect.
+- `connected == Streaming || Paused`. Lock is not disconnect. Wi-Fi off / vanished client (`/feedback` silent ≥8s) **is** disconnect → connect stub.
 - Recreate VT only when SPS/PPS/VPS **bytes** change. Identical SPS on unlock must keep the session.
 - After a real parameter change, wait for IDR (H.264 type 5 / HEVC IRAP) before P-frames.
 - Do not `reset_session` on pause/resume. Do not drop UxPlay SPS prepend on NTP mismatch.

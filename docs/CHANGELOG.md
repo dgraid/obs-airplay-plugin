@@ -1,5 +1,11 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (Wi-Fi drop → connect stub)
+
+- Helper watches iOS POST `/feedback`. Silence ≥8s while a session is open → Discoverable (connect instructions), decoder reset, HTTP connections dropped.
+- Video stall ≥2.5s becomes Paused only if the heartbeat is still alive (real lock, missed `0x56`). Dead network is not lock.
+- Breaking: no. Lock still stays `connected=true`. Wi-Fi off / vanished client now fires on-disconnect after ~8s.
+
 ## 2026-08-23 (pause stub at iPhone size)
 
 - Paused (iPhone lock): separate stub (“зеркало на паузе” / unlock to resume), not the connect instructions.
