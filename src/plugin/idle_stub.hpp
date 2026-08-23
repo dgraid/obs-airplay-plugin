@@ -5,15 +5,14 @@
 #include <vector>
 
 struct IdleStubCopy {
-  std::string header;
-  std::string step1;
-  std::string step2_prefix;
-  std::string step2;
-  std::string step2_hint_a;
-  std::string step2_hint_b;
-  std::string step3_prefix;
-  std::string step3_suffix;
-  std::string step3_hint;
+  std::string subtitle;
+  std::string device_label;
+  std::string how_label;
+  std::string how_value;
+  std::string how_hint;
+  std::string network_label;
+  std::string network_value;
+  std::string footer;
 };
 
 struct PauseStubCopy {

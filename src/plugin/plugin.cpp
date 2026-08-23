@@ -168,23 +168,23 @@ void log_helper_stderr(int fd) {
 IdleStubCopy stub_copy() {
   IdleStubCopy c;
   if (language_is_en(module_settings().language)) {
-    c.header = "Follow the instructions below on your iPhone or iPad:";
-    c.step1 = "1. Connect to the same network as this Mac";
-    c.step2_prefix = "2. Tap ";
-    c.step2 = "Screen Mirroring";
-    c.step2_hint_a = "Location: swipe down from the top-right corner of the screen";
-    c.step2_hint_b = "For iOS 11 and earlier: swipe up from the bottom";
-    c.step3_prefix = "3. Select ";
-    c.step3_hint = "Item not showing? Restart the device";
+    c.subtitle = "Mirror your iPhone, iPad, or Mac into OBS";
+    c.device_label = "Choose This Device";
+    c.how_label = "How to Connect";
+    c.how_value = "Control Center → Screen Mirroring";
+    c.how_hint = "Swipe down from the top-right corner";
+    c.network_label = "Network";
+    c.network_value = "Same Wi-Fi as this Mac. 5 GHz Wi-Fi or Ethernet is recommended.";
+    c.footer = "Not in the list? Restart the iPhone.";
   } else {
-    c.header = "Соблюдайте приведенные ниже инструкции на вашем iPhone или iPad:";
-    c.step1 = "1. Подключитесь к той же сети, что и это устройство Mac";
-    c.step2_prefix = "2. Нажмите ";
-    c.step2 = "Повтор экрана";
-    c.step2_hint_a = "Расположение: смахните от правого верхнего угла экрана вниз";
-    c.step2_hint_b = "Для ОС iOS 11 и более ранних версий: смахните снизу вверх";
-    c.step3_prefix = "3. Выберите ";
-    c.step3_hint = "Не отображается элемент? Перезагрузите устройство";
+    c.subtitle = "Передайте экран iPhone, iPad или Mac в OBS";
+    c.device_label = "Выберите это устройство";
+    c.how_label = "Как подключиться";
+    c.how_value = "Пункт управления → Повтор экрана";
+    c.how_hint = "Смахните вниз от правого верхнего угла";
+    c.network_label = "Сеть";
+    c.network_value = "Та же сеть, что и у этого Mac. Для стабильной картинки — Wi‑Fi 5 ГГц или Ethernet.";
+    c.footer = "Нет в списке? Перезагрузите iPhone.";
   }
   return c;
 }

@@ -1,5 +1,11 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (dark Apple TV idle stub)
+
+- Waiting / Stop Mirroring canvas: dark two-column Apple TV layout — AirPlay icon + wordmark, glass card with source name, Control Center path, 5 GHz Wi-Fi / Ethernet hint.
+- Narrow canvases stack brand above the card. Pause stub (lock) is unchanged.
+- Breaking: no.
+
 ## 2026-08-23 (Wi-Fi drop → connect stub)
 
 - Helper watches iOS POST `/feedback`. Silence ≥8s while a session is open → Discoverable (connect instructions), decoder reset, HTTP connections dropped.

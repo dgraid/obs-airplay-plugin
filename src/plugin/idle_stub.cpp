@@ -38,6 +38,19 @@ CFAttributedStringRef make_attr(const std::string &utf8, CTFontRef font, CGColor
   return attr;
 }
 
+CGFloat measure_text(const std::string &utf8, CTFontRef font, CGFloat max_w,
+                     CTTextAlignment align = kCTTextAlignmentNatural) {
+  if (utf8.empty())
+    return 0;
+  CFAttributedStringRef attr = make_attr(utf8, font, CGColorGetConstantColor(kCGColorWhite), align);
+  CTFramesetterRef fs = CTFramesetterCreateWithAttributedString(attr);
+  CGSize sz = CTFramesetterSuggestFrameSizeWithConstraints(fs, CFRangeMake(0, 0), nullptr,
+                                                           CGSizeMake(max_w, CGFLOAT_MAX), nullptr);
+  CFRelease(fs);
+  CFRelease(attr);
+  return std::ceil(sz.height) + 1;
+}
+
 CGFloat draw_wrapped(CGContextRef ctx, const std::string &utf8, CTFontRef font, CGColorRef color, CGFloat x,
                      CGFloat top, CGFloat canvas_h, CGFloat max_w,
                      CTTextAlignment align = kCTTextAlignmentNatural) {
@@ -59,63 +72,115 @@ CGFloat draw_wrapped(CGContextRef ctx, const std::string &utf8, CTFontRef font, 
   return box_h;
 }
 
-void draw_airplay_icon(CGContextRef ctx, CGRect r, CGColorRef color) {
+void fill_round_rect(CGContextRef ctx, CGRect r, CGFloat rad, CGColorRef fill, CGColorRef stroke, CGFloat lw) {
+  rad = std::min(rad, std::min(r.size.width, r.size.height) * 0.5f);
+  CGPathRef p = CGPathCreateWithRoundedRect(r, rad, rad, nullptr);
+  CGContextAddPath(ctx, p);
+  CGContextSetFillColorWithColor(ctx, fill);
+  CGContextFillPath(ctx);
+  if (stroke && lw > 0) {
+    CGContextAddPath(ctx, p);
+    CGContextSetStrokeColorWithColor(ctx, stroke);
+    CGContextSetLineWidth(ctx, lw);
+    CGContextStrokePath(ctx);
+  }
+  CGPathRelease(p);
+}
+
+void draw_divider(CGContextRef ctx, CGFloat x, CGFloat y_top, CGFloat canvas_h, CGFloat w, CGColorRef color) {
   CGContextSaveGState(ctx);
   CGContextSetStrokeColorWithColor(ctx, color);
-  CGFloat lw = std::max<CGFloat>(1.6, r.size.width / 9.0);
-  CGContextSetLineWidth(ctx, lw);
-  CGFloat rad = std::max<CGFloat>(1.5, r.size.width / 10.0);
-  CGRect back = r;
-  CGPathRef back_p = CGPathCreateWithRoundedRect(back, rad, rad, nullptr);
-  CGContextAddPath(ctx, back_p);
+  CGContextSetLineWidth(ctx, 1);
+  CGFloat y = canvas_h - y_top;
+  CGContextMoveToPoint(ctx, x, y);
+  CGContextAddLineToPoint(ctx, x + w, y);
   CGContextStrokePath(ctx);
-  CGPathRelease(back_p);
-  CGFloat inset = r.size.width * 0.22;
-  CGRect front = CGRectInset(r, inset, inset);
-  front.origin.x += inset * 0.45;
-  front.origin.y -= inset * 0.35;
-  CGPathRef front_p = CGPathCreateWithRoundedRect(front, rad * 0.7, rad * 0.7, nullptr);
-  CGContextAddPath(ctx, front_p);
-  CGContextStrokePath(ctx);
-  CGPathRelease(front_p);
   CGContextRestoreGState(ctx);
 }
 
-CGFloat draw_step2(CGContextRef ctx, const IdleStubCopy &copy, CTFontRef font, CGColorRef color, CGFloat x,
-                   CGFloat top, CGFloat canvas_h, CGFloat icon_size) {
-  CFAttributedStringRef a1 = make_attr(copy.step2_prefix, font, color);
-  CFAttributedStringRef a2 = make_attr(copy.step2, font, color);
-  CTLineRef l1 = CTLineCreateWithAttributedString(a1);
-  CTLineRef l2 = CTLineCreateWithAttributedString(a2);
-  CGFloat as1 = 0, ds1 = 0, lead = 0;
-  CGFloat as2 = 0, ds2 = 0;
-  CTLineGetTypographicBounds(l1, &as1, &ds1, &lead);
-  CTLineGetTypographicBounds(l2, &as2, &ds2, &lead);
-  CGFloat ascent = std::max(as1, as2);
-  CGFloat descent = std::max(ds1, ds2);
-  CGFloat w1 = (CGFloat)CTLineGetTypographicBounds(l1, nullptr, nullptr, nullptr);
-  CGFloat baseline = canvas_h - top - ascent;
-  CGContextSetTextPosition(ctx, x, baseline);
-  CTLineDraw(l1, ctx);
-  CGRect icon = CGRectMake(x + w1 + 2, baseline - icon_size * 0.12, icon_size, icon_size * 0.78);
-  draw_airplay_icon(ctx, icon, color);
-  CGContextSetTextPosition(ctx, CGRectGetMaxX(icon) + 8, baseline);
-  CTLineDraw(l2, ctx);
-  CFRelease(l1);
-  CFRelease(l2);
-  CFRelease(a1);
-  CFRelease(a2);
-  return ascent + descent + 2;
+void draw_airplay_icon(CGContextRef ctx, CGRect r, CGColorRef color) {
+  CGContextSaveGState(ctx);
+  CGContextSetStrokeColorWithColor(ctx, color);
+  CGContextSetFillColorWithColor(ctx, color);
+  CGFloat lw = std::max<CGFloat>(2.2, r.size.width / 12.0);
+  CGContextSetLineWidth(ctx, lw);
+  CGContextSetLineJoin(ctx, kCGLineJoinRound);
+  CGContextSetLineCap(ctx, kCGLineCapRound);
+
+  CGRect screen = CGRectMake(r.origin.x + lw * 0.5, r.origin.y + r.size.height * 0.34, r.size.width - lw,
+                             r.size.height * 0.64 - lw);
+  CGFloat rad = std::max<CGFloat>(3.0, r.size.width / 7.5);
+  CGPathRef screen_p = CGPathCreateWithRoundedRect(screen, rad, rad, nullptr);
+  CGContextAddPath(ctx, screen_p);
+  CGContextStrokePath(ctx);
+  CGPathRelease(screen_p);
+
+  CGFloat cx = r.origin.x + r.size.width * 0.5;
+  CGFloat tri_w = r.size.width * 0.52;
+  CGFloat tri_top = r.origin.y + r.size.height * 0.42;
+  CGContextBeginPath(ctx);
+  CGContextMoveToPoint(ctx, cx - tri_w * 0.5, r.origin.y);
+  CGContextAddLineToPoint(ctx, cx + tri_w * 0.5, r.origin.y);
+  CGContextAddLineToPoint(ctx, cx, tri_top);
+  CGContextClosePath(ctx);
+  CGContextFillPath(ctx);
+  CGContextRestoreGState(ctx);
 }
 
-void draw_blob(CGContextRef ctx, CGPoint c, CGFloat r, CGFloat R, CGFloat G, CGFloat B, CGFloat A) {
+void fill_dark_bg(CGContextRef ctx, CGFloat w, CGFloat h) {
   CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-  CGFloat comps[] = {R, G, B, A, R, G, B, 0};
+  CGFloat comps[] = {0.10, 0.10, 0.11, 1, 0.05, 0.05, 0.06, 1};
   CGFloat locs[] = {0, 1};
   CGGradientRef g = CGGradientCreateWithColorComponents(cs, comps, locs, 2);
-  CGContextDrawRadialGradient(ctx, g, c, 0, c, r, kCGGradientDrawsBeforeStartLocation);
+  CGContextDrawLinearGradient(ctx, g, CGPointMake(0, h), CGPointMake(0, 0), 0);
   CGGradientRelease(g);
   CGColorSpaceRelease(cs);
+}
+
+struct CardFonts {
+  CTFontRef label;
+  CTFontRef value;
+  CTFontRef hint;
+};
+
+CGFloat card_content_h(const IdleStubCopy &copy, const std::string &name, const CardFonts &f, CGFloat inner_w,
+                       CGFloat pad, CGFloat gap_xs, CGFloat gap_sm, CGFloat gap_md) {
+  CGFloat h = pad;
+  h += measure_text(copy.device_label, f.label, inner_w) + gap_sm;
+  h += measure_text(name, f.value, inner_w) + gap_md;
+  h += 1 + gap_md;
+  h += measure_text(copy.how_label, f.label, inner_w) + gap_sm;
+  h += measure_text(copy.how_value, f.value, inner_w) + gap_xs;
+  h += measure_text(copy.how_hint, f.hint, inner_w) + gap_md;
+  h += 1 + gap_md;
+  h += measure_text(copy.network_label, f.label, inner_w) + gap_sm;
+  h += measure_text(copy.network_value, f.value, inner_w) + gap_md;
+  h += measure_text(copy.footer, f.hint, inner_w);
+  h += pad;
+  return h;
+}
+
+CGFloat draw_card(CGContextRef ctx, const IdleStubCopy &copy, const std::string &name, const CardFonts &f,
+                  CGColorRef white, CGColorRef muted, CGColorRef card_fill, CGColorRef card_stroke,
+                  CGFloat x, CGFloat y, CGFloat canvas_h, CGFloat w, CGFloat h, CGFloat rad, CGFloat pad,
+                  CGFloat gap_xs, CGFloat gap_sm, CGFloat gap_md) {
+  fill_round_rect(ctx, CGRectMake(x, canvas_h - y - h, w, h), rad, card_fill, card_stroke, 1);
+  const CGFloat inner_x = x + pad;
+  const CGFloat inner_w = w - pad * 2;
+  CGFloat cy = y + pad;
+  cy += draw_wrapped(ctx, copy.device_label, f.label, muted, inner_x, cy, canvas_h, inner_w) + gap_sm;
+  cy += draw_wrapped(ctx, name, f.value, white, inner_x, cy, canvas_h, inner_w) + gap_md;
+  draw_divider(ctx, inner_x, cy, canvas_h, inner_w, card_stroke);
+  cy += 1 + gap_md;
+  cy += draw_wrapped(ctx, copy.how_label, f.label, muted, inner_x, cy, canvas_h, inner_w) + gap_sm;
+  cy += draw_wrapped(ctx, copy.how_value, f.value, white, inner_x, cy, canvas_h, inner_w) + gap_xs;
+  cy += draw_wrapped(ctx, copy.how_hint, f.hint, muted, inner_x, cy, canvas_h, inner_w) + gap_md;
+  draw_divider(ctx, inner_x, cy, canvas_h, inner_w, card_stroke);
+  cy += 1 + gap_md;
+  cy += draw_wrapped(ctx, copy.network_label, f.label, muted, inner_x, cy, canvas_h, inner_w) + gap_sm;
+  cy += draw_wrapped(ctx, copy.network_value, f.value, white, inner_x, cy, canvas_h, inner_w) + gap_md;
+  draw_wrapped(ctx, copy.footer, f.hint, muted, inner_x, cy, canvas_h, inner_w);
+  return h;
 }
 
 } // namespace
@@ -134,67 +199,84 @@ std::vector<uint8_t> render_idle_stub(uint32_t w, uint32_t h, const std::string 
   if (!ctx)
     return out;
 
-  CGContextSetRGBFillColor(ctx, 1, 1, 1, 1);
-  CGContextFillRect(ctx, CGRectMake(0, 0, w, h));
+  fill_dark_bg(ctx, (CGFloat)w, (CGFloat)h);
 
   const CGFloat canvas_h = (CGFloat)h;
-  draw_blob(ctx, CGPointMake(w * 0.18, canvas_h - h * 0.08), h * 0.42, 1.0, 0.62, 0.32, 0.28);
-  draw_blob(ctx, CGPointMake(w * 0.48, canvas_h - h * 0.02), h * 0.38, 0.35, 0.62, 0.95, 0.26);
-  draw_blob(ctx, CGPointMake(w * 0.72, canvas_h - h * 0.12), h * 0.28, 0.55, 0.85, 0.45, 0.12);
-
   const CGFloat s = (CGFloat)h / 1080.0f;
-  const CGFloat title_sz = std::max<CGFloat>(18, 28 * s);
-  const CGFloat body_sz = std::max<CGFloat>(17, 26 * s);
-  const CGFloat hint_sz = std::max<CGFloat>(12, 16 * s);
-  const CGFloat gap_major = 28 * s;
-  const CGFloat gap_hint = 6 * s;
-  const CGFloat block_w = std::min((CGFloat)w * 0.72f, 920 * s);
-  const CGFloat x = ((CGFloat)w - block_w) * 0.5f;
+  const CGFloat title_sz = std::max<CGFloat>(32, 84 * s);
+  const CGFloat sub_sz = std::max<CGFloat>(13, 22 * s);
+  const CGFloat label_sz = std::max<CGFloat>(11, 13 * s);
+  const CGFloat value_sz = std::max<CGFloat>(15, 22 * s);
+  const CGFloat hint_sz = std::max<CGFloat>(11, 14 * s);
+  const CGFloat icon_s = std::max<CGFloat>(40, 88 * s);
+  const CGFloat margin = std::max<CGFloat>(24, 80 * s);
+  const CGFloat col_gap = std::max<CGFloat>(20, 56 * s);
+  const CGFloat pad = std::max<CGFloat>(16, 32 * s);
+  const CGFloat gap_xs = std::max<CGFloat>(4, 6 * s);
+  const CGFloat gap_sm = std::max<CGFloat>(4, 8 * s);
+  const CGFloat gap_md = std::max<CGFloat>(10, 18 * s);
+  const CGFloat brand_gap = std::max<CGFloat>(10, 18 * s);
+  const CGFloat rad = std::max<CGFloat>(10, 18 * s);
+  const bool stack = (CGFloat)w < (CGFloat)h * 1.25f || (CGFloat)w < 1100;
+  const CTTextAlignment brand_align = stack ? kCTTextAlignmentCenter : kCTTextAlignmentNatural;
+  const std::string name = receiver_name.empty() ? "AirPlay Receiver" : receiver_name;
 
   CTFontRef title_f = ui_font(title_sz, true);
-  CTFontRef body_f = ui_font(body_sz, true);
-  CTFontRef hint_f = ui_font(hint_sz, false);
-  CGColorRef dark = CGColorCreateGenericRGB(0.12, 0.12, 0.12, 1);
-  CGColorRef gray = CGColorCreateGenericRGB(0.42, 0.42, 0.42, 1);
+  CTFontRef sub_f = ui_font(sub_sz, false);
+  CardFonts cf{ui_font(label_sz, false), ui_font(value_sz, true), ui_font(hint_sz, false)};
+  CGColorRef white = CGColorCreateGenericRGB(1, 1, 1, 1);
+  CGColorRef muted = CGColorCreateGenericRGB(1, 1, 1, 0.70);
+  CGColorRef card_fill = CGColorCreateGenericRGB(1, 1, 1, 0.08);
+  CGColorRef card_stroke = CGColorCreateGenericRGB(1, 1, 1, 0.15);
 
-  std::string step3 = copy.step3_prefix + "\"" + receiver_name + "\"";
-
-  auto measure = [&](const std::string &t, CTFontRef f) -> CGFloat {
-    if (t.empty())
-      return 0;
-    CFAttributedStringRef attr = make_attr(t, f, dark);
-    CTFramesetterRef fs = CTFramesetterCreateWithAttributedString(attr);
-    CGSize sz = CTFramesetterSuggestFrameSizeWithConstraints(fs, CFRangeMake(0, 0), nullptr,
-                                                             CGSizeMake(block_w, CGFLOAT_MAX), nullptr);
-    CFRelease(fs);
-    CFRelease(attr);
-    return std::ceil(sz.height) + 1;
+  auto brand_h = [&](CGFloat col_w) -> CGFloat {
+    return icon_s + brand_gap + measure_text("AirPlay", title_f, col_w, brand_align) + brand_gap +
+           measure_text(copy.subtitle, sub_f, col_w, brand_align);
+  };
+  auto draw_brand = [&](CGFloat x, CGFloat y, CGFloat col_w) {
+    CGFloat icon_x = stack ? x + (col_w - icon_s) * 0.5f : x;
+    draw_airplay_icon(ctx, CGRectMake(icon_x, canvas_h - y - icon_s, icon_s, icon_s), white);
+    CGFloat cy = y + icon_s + brand_gap;
+    cy += draw_wrapped(ctx, "AirPlay", title_f, white, x, cy, canvas_h, col_w, brand_align) + brand_gap;
+    draw_wrapped(ctx, copy.subtitle, sub_f, muted, x, cy, canvas_h, col_w, brand_align);
   };
 
-  CGFloat total = 0;
-  total += measure(copy.header, title_f) + gap_major;
-  total += measure(copy.step1, body_f) + gap_major;
-  total += body_sz + 8 + gap_hint;
-  total += measure(copy.step2_hint_a, hint_f) + 2;
-  total += measure(copy.step2_hint_b, hint_f) + gap_major;
-  total += measure(step3, body_f) + gap_hint;
-  total += measure(copy.step3_hint, hint_f);
+  if (stack) {
+    const CGFloat col_w = std::min((CGFloat)w - margin * 2, (CGFloat)w * 0.88f);
+    const CGFloat x = ((CGFloat)w - col_w) * 0.5f;
+    const CGFloat inner_w = col_w - pad * 2;
+    const CGFloat ch =
+        card_content_h(copy, name, cf, std::max<CGFloat>(1, inner_w), pad, gap_xs, gap_sm, gap_md);
+    const CGFloat bh = brand_h(col_w);
+    const CGFloat total = bh + col_gap + ch;
+    CGFloat y = std::max(margin, ((CGFloat)h - total) * 0.5f);
+    draw_brand(x, y, col_w);
+    draw_card(ctx, copy, name, cf, white, muted, card_fill, card_stroke, x, y + bh + col_gap, canvas_h, col_w,
+              ch, rad, pad, gap_xs, gap_sm, gap_md);
+  } else {
+    const CGFloat inner = (CGFloat)w - margin * 2 - col_gap;
+    const CGFloat brand_w = inner * 0.42f;
+    const CGFloat card_w = inner - brand_w;
+    const CGFloat inner_w = card_w - pad * 2;
+    const CGFloat ch =
+        card_content_h(copy, name, cf, std::max<CGFloat>(1, inner_w), pad, gap_xs, gap_sm, gap_md);
+    const CGFloat bh = brand_h(brand_w);
+    const CGFloat block_h = std::max(bh, ch);
+    CGFloat y = std::max(margin, ((CGFloat)h - block_h) * 0.5f);
+    draw_brand(margin, y + (block_h - bh) * 0.5f, brand_w);
+    draw_card(ctx, copy, name, cf, white, muted, card_fill, card_stroke, margin + brand_w + col_gap,
+              y + (block_h - ch) * 0.5f, canvas_h, card_w, ch, rad, pad, gap_xs, gap_sm, gap_md);
+  }
 
-  CGFloat y = std::max<CGFloat>(40 * s, ((CGFloat)h - total) * 0.5f);
-
-  y += draw_wrapped(ctx, copy.header, title_f, dark, x, y, canvas_h, block_w) + gap_major;
-  y += draw_wrapped(ctx, copy.step1, body_f, dark, x, y, canvas_h, block_w) + gap_major;
-  y += draw_step2(ctx, copy, body_f, dark, x, y, canvas_h, body_sz * 0.95f) + gap_hint;
-  y += draw_wrapped(ctx, copy.step2_hint_a, hint_f, gray, x, y, canvas_h, block_w) + 2;
-  y += draw_wrapped(ctx, copy.step2_hint_b, hint_f, gray, x, y, canvas_h, block_w) + gap_major;
-  y += draw_wrapped(ctx, step3, body_f, dark, x, y, canvas_h, block_w) + gap_hint;
-  draw_wrapped(ctx, copy.step3_hint, hint_f, gray, x, y, canvas_h, block_w);
-
-  CGColorRelease(dark);
-  CGColorRelease(gray);
+  CGColorRelease(white);
+  CGColorRelease(muted);
+  CGColorRelease(card_fill);
+  CGColorRelease(card_stroke);
   CFRelease(title_f);
-  CFRelease(body_f);
-  CFRelease(hint_f);
+  CFRelease(sub_f);
+  CFRelease(cf.label);
+  CFRelease(cf.value);
+  CFRelease(cf.hint);
   CGContextRelease(ctx);
   return out;
 }
