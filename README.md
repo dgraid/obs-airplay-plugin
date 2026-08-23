@@ -13,15 +13,17 @@ Not a Zoom AirHost clone. Zoom was audited read-only. See `docs/ZOOM_AIRHOST_AUD
 
 ## Install
 
+**On another Mac (no terminal):** double-click `dist/obs-airplay-0.2.0-macos-arm64.pkg` (rebuild with `./scripts/package_pkg.sh`). Quit OBS first. No admin password. Installs to `~/Library/Application Support/obs-studio/plugins/obs-airplay.plugin`. Does not touch `/Applications/OBS.app`.
+
+This `.pkg` is **not notarized**. If macOS blocks it: Control-click → Open, or System Settings → Privacy & Security → Open Anyway. AirDrop/USB often skip that prompt; a download from the internet usually does not.
+
+**This Mac, from the build tree:**
+
 ```bash
 ./scripts/install.sh
 ```
 
-Copies `build/obs-airplay.plugin` to:
-
-`~/Library/Application Support/obs-studio/plugins/obs-airplay.plugin`
-
-Quit OBS first. No sudo. Does not write into `/Applications/OBS.app`.
+Same destination. Quit OBS first. No sudo.
 
 ## Use
 

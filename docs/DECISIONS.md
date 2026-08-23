@@ -9,6 +9,7 @@ Canonical architecture write-up: `docs/ARCHITECTURE_DECISION.md`.
 | 2026-08-23 | Transport: unix-domain SOCK_STREAM (priority 3) | IOSurface needs Mach bootstrap between two ad-hoc binaries under library validation. Shm ring next if socket copy shows in profiles. Protocol still has generation id + timestamps + bounded drop-oldest. |
 | 2026-08-23 | Native VideoToolbox first, FFmpeg only inside helper | FFmpeg must not load into the OBS process. Plugin `otool -L` is `libobs` + `obs-frontend-api` + system. |
 | 2026-08-23 | Install only to user plugins dir | Never copy into `/Applications/OBS.app`. No sudo. |
+| 2026-08-23 | Ship an **unsigned** `.pkg` with `enable_currentUserHome` only | OBS 28+ loads `.plugin` only from `~/Library/.../plugins`. A system `/Library` payload would install and never load. No Apple Developer ID → no notarize; Gatekeeper is documented, not bypassed. |
 | 2026-08-23 | Helper starts on **activate**, stops on **deactivate** | Source in an inactive scene must not advertise Bonjour. |
 | 2026-08-23 | GET `/info` crash was NULL `audio_set_client_volume`, not mDNS conflict with the OS receiver | Stub callbacks; do not copy Zoom TXT. |
 | 2026-08-23 | Idle stub + canvas letterbox in the **plugin**, not helper | Async `obs_source_output_video` already owns pixels. Helper is off on deactivate. Zoom PNG not used. |

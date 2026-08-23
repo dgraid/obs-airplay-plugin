@@ -1,5 +1,12 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (unsigned .pkg)
+
+- `scripts/package_pkg.sh` builds `dist/obs-airplay-0.2.0-macos-arm64.pkg` (productbuild, currentUserHome only, hostArchitectures=arm64).
+- Payload is `~/Library/Application Support/obs-studio/plugins/obs-airplay.plugin`. No sudo, not `/Library`, not `OBS.app`.
+- preinstall aborts if OBS is running or the Mac is not arm64. postinstall strips quarantine and re-applies ad-hoc codesign.
+- Not Developer ID / not notarized. Gatekeeper on a downloaded copy needs Open Anyway. Breaking: no.
+
 ## 2026-08-23 (audio pad)
 
 - Source property `audio_gain_db` (−24…0 dB, default −6). PCM converted to float before OBS so the pad restores headroom; mixer fader is the live control.

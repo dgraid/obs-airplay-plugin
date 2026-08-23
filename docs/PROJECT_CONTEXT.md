@@ -45,6 +45,6 @@ Not a Zoom product. Zoom `airhost.app` was audited read-only as a process-isolat
 
 ## Status (2026-08-23)
 
-Shippable **bundle** exists (arm64, rpath, ad-hoc sign, ZIP). Plugin **loads** in OBS 32.2.2.
+Shippable **bundle** exists (arm64, rpath, ad-hoc sign). Unsigned **`.pkg`** via `scripts/package_pkg.sh` → `dist/obs-airplay-0.2.0-macos-arm64.pkg` (currentUserHome, no sudo). Plugin **loads** in OBS 32.2.2. Notarize is not in this tree.
 
 Still **BLOCKED** without the owner: Zoom `--live` audit, iPhone Screen Mirroring loop, kill-helper-while-streaming, 2h soak, create/delete in the UI.

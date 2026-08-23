@@ -1,0 +1,37 @@
+#!/bin/bash
+set -euo pipefail
+
+plugin_rel="Library/Application Support/obs-studio/plugins/obs-airplay.plugin"
+
+console_user="$(stat -f '%Su' /dev/console 2>/dev/null || true)"
+console_home=""
+if [[ -n "$console_user" && "$console_user" != "root" && "$console_user" != "loginwindow" ]]; then
+  console_home="$(dscl . -read "/Users/${console_user}" NFSHomeDirectory 2>/dev/null | awk '{print $2}' || true)"
+fi
+
+dest=""
+for candidate in \
+  "${console_home:+$console_home/$plugin_rel}" \
+  "${HOME}/${plugin_rel}" \
+  "${2:-/}/${plugin_rel}"; do
+  [[ -z "$candidate" ]] && continue
+  if [[ -d "$candidate" ]]; then
+    dest="$candidate"
+    break
+  fi
+done
+
+if [[ -z "$dest" ]]; then
+  echo "postinstall: plugin bundle not found under home or \$2=$2" >&2
+  exit 1
+fi
+
+xattr -cr "$dest" >/dev/null 2>&1 || true
+codesign --force --deep --sign - --timestamp=none "$dest" >/dev/null
+
+if [[ "$(id -u)" -eq 0 && -n "${console_user:-}" && "$console_user" != "root" ]]; then
+  chown -R "${console_user}:staff" "$dest" || true
+fi
+
+echo "Installed $dest"
+exit 0

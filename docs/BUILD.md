@@ -16,6 +16,14 @@ cmake --build build
 
 Output: `build/obs-airplay.plugin`
 
+Installer `.pkg` (unsigned, current-user home, arm64):
+
+```bash
+./scripts/package_pkg.sh
+```
+
+Writes `dist/obs-airplay-0.2.0-macos-arm64.pkg`. Needs the bundle already built. Not notarized — see README Gatekeeper notes.
+
 Headers: `vendor/obs-studio-32.2.2/libobs` (OBS 32.2.2 tag). Link: `/Applications/OBS.app/Contents/Frameworks/libobs.framework`.
 
 UxPlay is compiled as static `airplay` from `third_party/UxPlay` (no GStreamer). Helper bundles FFmpeg/fdk-aac dylibs and is ad-hoc signed.

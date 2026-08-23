@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>OBS AirPlay Receiver</title>
+    <organization>dev.local</organization>
+    <options customize="never" require-scripts="true" hostArchitectures="arm64"/>
+    <domains enable_anywhere="false" enable_currentUserHome="true" enable_localSystem="false"/>
+    <readme file="readme.txt" mime-type="text/plain"/>
+    <license file="license.txt" mime-type="text/plain"/>
+    <choices-outline>
+        <line choice="dev.local.obs-airplay"/>
+    </choices-outline>
+    <choice id="dev.local.obs-airplay" visible="false" title="OBS AirPlay">
+        <pkg-ref id="dev.local.obs-airplay"/>
+    </choice>
+    <pkg-ref id="dev.local.obs-airplay" version="@VERSION@" onConclusion="none">@COMPONENT@</pkg-ref>
+</installer-gui-script>

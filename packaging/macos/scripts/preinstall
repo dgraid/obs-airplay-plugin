@@ -1,0 +1,19 @@
+#!/bin/bash
+set -euo pipefail
+
+fail() {
+  local msg="$1"
+  echo "$msg" >&2
+  osascript -e "display dialog \"$msg\" buttons {\"OK\"} default button 1 with icon stop" >/dev/null 2>&1 || true
+  exit 1
+}
+
+if [[ "$(uname -m)" != "arm64" ]]; then
+  fail "OBS AirPlay is Apple Silicon only (arm64). This Mac is $(uname -m)."
+fi
+
+if pgrep -x OBS >/dev/null 2>&1; then
+  fail "Закройте OBS и запустите установщик снова. Quit OBS, then run this installer again."
+fi
+
+exit 0

@@ -1,0 +1,19 @@
+OBS AirPlay Receiver
+
+This binary installer includes:
+
+- UxPlay, licensed under the GNU General Public License v3.0.
+  Corresponding source is the git tree this build was produced from.
+  The full GPL-3.0 text follows.
+
+- Fraunhofer FDK AAC (bundled dylib), under the Fraunhofer FDK AAC license
+  (not GPL). Review that license before further redistribution.
+
+- FFmpeg libraries as bundled from Homebrew (LGPL/GPL mix as built).
+
+The GPL and FDK AAC licenses are independent; this package does not
+relicense FDK AAC as GPL.
+
+------------------------------------------------------------------------------
+ GNU GPL-3.0 (UxPlay)
+------------------------------------------------------------------------------
