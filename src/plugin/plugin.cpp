@@ -488,15 +488,14 @@ struct Source {
     fade_fh = 0;
   }
 
-  float fade_t_locked() const {
+  float fade_t_linear_locked() const {
     if (!fade_on)
       return 1.f;
     const uint64_t now = os_gettime_ns();
     const uint64_t elapsed = now >= fade_t0 ? now - fade_t0 : 0;
     if (elapsed >= kFadeNs)
       return 1.f;
-    float t = (float)elapsed / (float)kFadeNs;
-    return t * t * (3.f - 2.f * t);
+    return (float)elapsed / (float)kFadeNs;
   }
 
   void begin_transition_locked(Visual to, const StageRect &new_rect) {
@@ -507,7 +506,7 @@ struct Source {
     if (!had || (!vis_ch && !rect_ch))
       return;
     if (fade_on)
-      from_rect = lerp_rect(from_rect, dest_rect, fade_t_locked());
+      from_rect = lerp_rect(from_rect, dest_rect, fade_t_linear_locked());
     else
       from_rect = dest_rect;
     fade_from = dest;
@@ -523,37 +522,35 @@ struct Source {
       return;
     frame.assign(n, 0);
     uint32_t a = 256;
+    float t_lin = 1.f;
     if (fade_on) {
       if (fade_from.empty() || fade_fw < 1 || fade_fh < 1 ||
           fade_from.size() < (size_t)fade_fw * fade_fh * 4) {
         cancel_fade_locked();
       } else {
-        const uint64_t now = os_gettime_ns();
-        const uint64_t elapsed = now >= fade_t0 ? now - fade_t0 : 0;
-        if (elapsed >= kFadeNs) {
+        t_lin = fade_t_linear_locked();
+        if (t_lin >= 1.f) {
           cancel_fade_locked();
+          t_lin = 1.f;
         } else {
-          float t = (float)elapsed / (float)kFadeNs;
-          t = t * t * (3.f - 2.f * t);
-          a = (uint32_t)(t * 256.f + 0.5f);
-          if (a >= 256) {
+          const float te = t_lin * t_lin * (3.f - 2.f * t_lin);
+          a = (uint32_t)(te * 256.f + 0.5f);
+          if (a > 256)
             a = 256;
-            cancel_fade_locked();
-          }
         }
       }
     }
     StageRect r = dest_rect;
     if (fade_on)
-      r = lerp_rect(from_rect, dest_rect, fade_t_locked());
+      r = lerp_rect(from_rect, dest_rect, t_lin);
     if (!r.valid())
       return;
     if (fade_on && a < 256) {
-      cover_blit_bgra(fade_from.data(), fade_fw, fade_fh, frame.data(), width, height, r.x, r.y, r.w, r.h);
+      contain_blit_bgra(fade_from.data(), fade_fw, fade_fh, frame.data(), width, height, r.x, r.y, r.w, r.h);
       if (a > 0)
-        cover_blend_bgra(dest.data(), dest_w, dest_h, frame.data(), width, height, r.x, r.y, r.w, r.h, a);
+        contain_blend_bgra(dest.data(), dest_w, dest_h, frame.data(), width, height, r.x, r.y, r.w, r.h, a);
     } else {
-      cover_blit_bgra(dest.data(), dest_w, dest_h, frame.data(), width, height, r.x, r.y, r.w, r.h);
+      contain_blit_bgra(dest.data(), dest_w, dest_h, frame.data(), width, height, r.x, r.y, r.w, r.h);
     }
     emit_video_locked(frame.data(), ts);
   }
@@ -855,6 +852,7 @@ const char *get_name(void *) { return obs_module_text("AirPlay"); }
 void *create(obs_data_t *settings, obs_source_t *source) {
   auto *s = new Source();
   s->source = source;
+  obs_source_set_async_unbuffered(source, true);
   s->name = airplay_name_from_source(source);
   s->max_w = (int)obs_data_get_int(settings, "max_width");
   s->max_h = (int)obs_data_get_int(settings, "max_height");

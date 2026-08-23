@@ -28,8 +28,8 @@ std::vector<uint8_t> render_pause_stub(uint32_t w, uint32_t h, const PauseStubCo
 
 void letterbox_bgra(const uint8_t *src, uint32_t sw, uint32_t sh, uint8_t *dst, uint32_t dw, uint32_t dh);
 
-void cover_blit_bgra(const uint8_t *src, uint32_t sw, uint32_t sh, uint8_t *dst, uint32_t dw, uint32_t dh,
-                     int32_t rx, int32_t ry, uint32_t rw, uint32_t rh);
+void contain_blit_bgra(const uint8_t *src, uint32_t sw, uint32_t sh, uint8_t *dst, uint32_t dw, uint32_t dh,
+                       int32_t rx, int32_t ry, uint32_t rw, uint32_t rh);
 
-void cover_blend_bgra(const uint8_t *src, uint32_t sw, uint32_t sh, uint8_t *dst, uint32_t dw, uint32_t dh,
-                      int32_t rx, int32_t ry, uint32_t rw, uint32_t rh, uint32_t a_256);
+void contain_blend_bgra(const uint8_t *src, uint32_t sw, uint32_t sh, uint8_t *dst, uint32_t dw, uint32_t dh,
+                        int32_t rx, int32_t ry, uint32_t rw, uint32_t rh, uint32_t a_256);

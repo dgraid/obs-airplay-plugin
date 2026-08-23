@@ -1,5 +1,10 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-23 (linear stage scale)
+
+- Inner 16:9/phone rect size now lerps **linearly** (fade stays eased). Images are **contain-scaled** into that rect so the stub grows to 1080 instead of crop-revealing in jumps. Async source is unbuffered so size frames are not dropped.
+- Breaking: no.
+
 ## 2026-08-23 (disconnect morph)
 
 - Disconnect/pause fade continues OBS timestamps from the last live frame (~60 Hz) and ignores video after leaving Streaming. Stop Mirroring was jumping because stub frames used a different clock and late live packets restarted the transition.
