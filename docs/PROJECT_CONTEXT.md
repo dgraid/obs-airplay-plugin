@@ -4,7 +4,7 @@ Canonical operator dump (lock/unlock, decoder, install traps): `docs/KNOWLEDGE.m
 
 ## What this is
 
-AirPlay **receiver** for OBS Studio 32.2.2 on Apple Silicon. iPhone/iPad/Mac Screen Mirroring appears as an OBS source with video + audio.
+Public name: **AirPlay Receiver for OBS**. AirPlay **receiver** for OBS Studio 32.2.2 on Apple Silicon. iPhone/iPad/Mac Screen Mirroring appears as an OBS source with video + audio. Open-source packaging: README, LICENSE, NOTICE, `docs/RELEASE.md`. GitHub push is gated on the maintainer.
 
 Not a Zoom product. Zoom `airhost.app` was audited read-only as a process-isolation reference.
 

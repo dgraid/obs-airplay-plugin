@@ -5,3 +5,9 @@ vendor/obs-airplay-upstream/
 .DS_Store
 *.ips
 .cache/
+*.pkg
+.env
+.env.*
+zoom/
+Zoom/
+**/airhost.app/

@@ -1,5 +1,12 @@
 # Changelog vs mika314/obs-airplay
 
+## 0.2.0 (public packaging)
+
+- Public name: **AirPlay Receiver for OBS**. README, LICENSE (GPL-2.0-or-later), NOTICE, `docs/RELEASE.md`, `docs/ANNOUNCE.md`.
+- OBS UI screenshots in `docs/images/` (add source, idle stub, properties, Tools). iPhone Control Center / live mirror still placeholders.
+- Vibe-coding + Cursor model list stated in README. Credits to mika314/obs-airplay and UxPlay.
+- Breaking: no. Binary behavior unchanged by this docs drop.
+
 ## 2026-08-23 (linear stage scale)
 
 - Inner 16:9/phone rect size now lerps **linearly** (fade stays eased). Images are **contain-scaled** into that rect so the stub grows to 1080 instead of crop-revealing in jumps. Async source is unbuffered so size frames are not dropped.

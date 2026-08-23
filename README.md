@@ -1,68 +1,121 @@
-# OBS AirPlay Receiver (helper + thin plugin)
+# AirPlay Receiver for OBS
 
-AirPlay screen mirroring into OBS Studio **32.2.2** on Apple Silicon. Protocol and decode run in **AirPlayReceiverHelper.app**; the OBS plugin only supervises the helper and pushes frames.
+AirPlay **Screen Mirroring** from iPhone, iPad, or Mac into [OBS Studio](https://obsproject.com/) on **Apple Silicon**. Adds a source named **AirPlay Receiver**. Video + audio.
 
-Not a Zoom AirHost clone. Zoom was audited read-only. See `docs/KNOWLEDGE.md`, `docs/ZOOM_AIRHOST_AUDIT.md`, and `docs/ARCHITECTURE_DECISION.md`.
+Not an official OBS Project plugin. Not affiliated with Apple or Zoom.
 
-## Requirements
+macOS 13+ · arm64 · OBS Studio **32.2.2**
 
-- macOS 13+ Apple Silicon (`arm64`)
-- OBS Studio 32.2.2 arm64 (`/Applications/OBS.app`)
-- iPhone/iPad/Mac on the same LAN
-- Built-in **AirPlay Receiver** can stay on. iPhone will show several names — pick the OBS source name (default **AirPlay Receiver**), not `MacBook Air`. Zoom Share iPhone at the same time only clutters the picker.
+![Waiting screen in OBS](docs/images/02-idle-stub.png)
+
+> **iPhone shot:** Control Center → Screen Mirroring and a live mirror in the preview are not in this README yet. They need a phone on the same Wi-Fi. The OBS UI shots below are from this Mac.
+
+## What you get
+
+| | |
+|---|---|
+| Source | **AirPlay Receiver** in Sources → + |
+| AirPlay name | The OBS source name (rename the source to rename the receiver) |
+| Idle | Full-canvas instruction card (not a black box) |
+| Live video | Letterboxed into the OBS canvas; transparent margins, scene shows through |
+| Audio | PCM into OBS; pad default **−6 dB** (source properties). iPhone volume buttons do not change capture level |
+| Crash isolation | Protocol/decode run in `AirPlayReceiverHelper.app`. Killing the helper must not kill OBS |
 
 ## Install
 
-**On another Mac (no terminal):** double-click `dist/obs-airplay-0.2.0-macos-arm64.pkg` (rebuild with `./scripts/package_pkg.sh`). Quit OBS first. No admin password. Installs to `~/Library/Application Support/obs-studio/plugins/obs-airplay.plugin`. Does not touch `/Applications/OBS.app`.
+Quit OBS first.
 
-This `.pkg` is **not notarized**. If macOS blocks it: Control-click → Open, or System Settings → Privacy & Security → Open Anyway. AirDrop/USB often skip that prompt; a download from the internet usually does not.
+**Installer:** double-click `obs-airplay-0.2.0-macos-arm64.pkg` from [Releases](../../releases) (after the first GitHub release). No admin password. Payload:
 
-**This Mac, from the build tree:**
+`~/Library/Application Support/obs-studio/plugins/obs-airplay.plugin`
+
+Does **not** write into `/Applications/OBS.app`.
+
+From this tree:
 
 ```bash
+./scripts/package_pkg.sh   # → dist/obs-airplay-0.2.0-macos-arm64.pkg
 ./scripts/install.sh
 ```
 
-Same destination. Quit OBS first. No sudo.
+### Gatekeeper (unsigned package)
 
-## Use
+There is no Apple Developer ID, so the `.pkg` is **not notarized**. After a download from the internet:
 
-1. OBS → Sources → **+** → **AirPlay Receiver**
-2. Rename the source if you want a custom AirPlay name (default `AirPlay Receiver`, second source `AirPlay Receiver 2`)
-3. On iPhone: Control Center → Screen Mirroring → that source name
-4. Video + audio should appear on the source. Audio pad defaults to **−6 dB** (source properties). iPhone volume buttons do not change capture level — use this pad and the OBS mixer.
+1. Control-click the `.pkg` → **Open**, or
+2. System Settings → Privacy & Security → **Open Anyway**
 
-Killing the helper must not crash OBS; the plugin restarts it with backoff if “Restart helper on crash” is on.
+AirDrop/USB often skip that prompt.
 
-## Uninstall
+### Uninstall
 
 ```bash
 ./scripts/uninstall.sh
 ```
 
-## Build
+## Use
 
-See `docs/BUILD.md`.
+1. OBS → Sources → **+** → **AirPlay Receiver**
 
-## Versions (this tree)
+   ![Add source](docs/images/01-add-source.png)
 
-| Piece | Pin |
-|---|---|
-| OBS | 32.2.2 |
-| UxPlay | v1.73.6 `21eef8df25d91e12635c36d8176ad192725baca2` |
-| FFmpeg (helper, bundled) | Homebrew 8.1.2_1 arm64 |
-| OpenSSL (static into UxPlay) | 3.6.3 arm64 `/opt/homebrew` |
-| libplist | 2.7.0 |
-| fdk-aac | 2.0.3 |
+2. Leave the source on the active scene. The canvas shows the waiting card:
 
-2022 UxPlay pin `64a7dd0fa09aefd643bd895c437bba9573e13ac4` is kept only as git history in `vendor/obs-airplay-upstream`. **Shipping binary uses 1.73.6.**
+   ![Idle stub](docs/images/02-idle-stub.png)
+
+3. On iPhone: Control Center → Screen Mirroring → the **source name** (default `AirPlay Receiver`), not `MacBook Air` / the Mac’s own receiver.
+4. Video + audio land on the source. Ride level with the source pad and the OBS mixer.
+
+   ![Source properties](docs/images/03-source-properties.png)
+
+5. Tools → **AirPlay Receiver**: stub language (en/ru), connect/disconnect scene automation.
+
+   ![Tools](docs/images/04-tools-window.png)
+
+Two sources can run at once (`AirPlay Receiver`, `AirPlay Receiver 2`, …). Rename while live restarts that helper (the AirPlay session drops).
+
+Built-in **AirPlay Receiver** on the Mac can stay on. The picker will show several names — pick the OBS source.
+
+## Limits
+
+- Apple Silicon only. No Windows, no Intel Mac.
+- OBS 32.2.2 arm64.
+- Unsigned `.pkg`.
+- 2h soak, Wi-Fi toggle, and reconnect loops still need a real iPhone (see `docs/TEST_REPORT.md`). Lock/unlock and first mirror have been confirmed on this machine.
+
+## Credits
+
+This is a **fork/rewrite** of [mika314/obs-airplay](https://github.com/mika314/obs-airplay) (GPL-2.0), not an official OBS Project plugin.
+
+- Protocol: [UxPlay 1.73.6](https://github.com/FDH2/UxPlay) (GPL-3.0), vendored. Lineage: antimof/UxPlay → RPiPlay / shairplay / playfair.
+- Helper process is this project’s design. Zoom AirHost was inspected **read-only** as a process-isolation reference. No Zoom code, identity, or assets.
+- OBS Studio plugin API: [obsproject/obs-studio](https://github.com/obsproject/obs-studio) (GPL-2.0).
+- Also: libplist, FFmpeg (helper only), fdk-aac, OpenSSL. See `NOTICE` and `docs/DEPENDENCIES.md`.
+
+## How this was built
+
+**Vibe-coded in [Cursor](https://cursor.com)** by the maintainer. Models used on this tree: Cursor Auto, Composer, GPT-5.3 Codex, Grok 4.6.
+
+That is a fact, not a sales pitch. Treat the plugin as experimental. File crashes in Issues. Do not assume OBS Forums will list it: their resource policy discourages mostly-AI plugins even with a disclaimer.
 
 ## License
 
-- Plugin/helper wrapper: same terms as upstream obs-airplay where applicable
-- UxPlay: GPL-3.0 (`third_party/UxPlay/LICENSE`)
-- fdk-aac: Fraunhofer FDK AAC license (bundled dylib)
+- OBS plugin (`obs-airplay.plugin`): **GPL-2.0-or-later** (same family as upstream obs-airplay / libobs). See `LICENSE`.
+- Helper (`AirPlayReceiverHelper.app`) links UxPlay: **GPL-3.0**. See `third_party/UxPlay/LICENSE`.
+- fdk-aac: Fraunhofer FDK AAC license (bundled dylib), not GPL.
 
-## What is not done until you test
+## Build
 
-2h soak, reconnect loop, Wi-Fi toggle: see `docs/TEST_REPORT.md`. Lock/unlock and first mirror are confirmed.
+`docs/BUILD.md`. Pins: OBS 32.2.2, UxPlay v1.73.6 `21eef8df25d91e12635c36d8176ad192725baca2`.
+
+## Downloads (after first GitHub Release)
+
+Release asset download counts (the `.pkg`, not the source zip):
+
+```bash
+gh api repos/OWNER/REPO/releases --jq '.[] | {tag: .tag_name, assets: [.assets[] | {name, download_count}]}'
+```
+
+Badge (replace OWNER/REPO):
+
+`https://img.shields.io/github/downloads/OWNER/REPO/total`
