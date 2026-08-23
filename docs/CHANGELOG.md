@@ -1,9 +1,9 @@
 # Changelog vs mika314/obs-airplay
 
-## 2026-08-23 (dark Apple TV idle stub)
+## 2026-08-23 (idle stub matches TV AirPlay screen)
 
-- Waiting / Stop Mirroring canvas: dark two-column Apple TV layout — AirPlay icon + wordmark, glass card with source name, Control Center path, 5 GHz Wi-Fi / Ethernet hint.
-- Narrow canvases stack brand above the card. Pause stub (lock) is unchanged.
+- Waiting canvas is a 16:9 Apple TV frame (1920×1080 design, scaled to the OBS canvas): pure black, wordmark + two glyphs on the left, glass card + white pill on the right.
+- Each half is centered in its pane so the layout no longer hugs the left edge. Pause stub unchanged.
 - Breaking: no.
 
 ## 2026-08-23 (Wi-Fi drop → connect stub)
