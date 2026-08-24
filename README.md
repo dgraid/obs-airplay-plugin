@@ -1,10 +1,16 @@
 # AirPlay Receiver for OBS
 
-AirPlay **Screen Mirroring** from iPhone, iPad, or Mac into [OBS Studio](https://obsproject.com/) on **Apple Silicon**. Adds a source named **AirPlay Receiver**. Video + audio.
+[![GitHub release](https://img.shields.io/github/v/release/dgraid/obs-airplay-plugin)](https://github.com/dgraid/obs-airplay-plugin/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/dgraid/obs-airplay-plugin/total)](https://github.com/dgraid/obs-airplay-plugin/releases)
+[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0--or--later-blue.svg)](LICENSE)
+
+**AirPlay OBS plugin** for Apple Silicon: iPhone / iPad / Mac **Screen Mirroring** into [OBS Studio](https://obsproject.com/) as a source named **AirPlay Receiver**. Video + audio.
 
 Not an official OBS Project plugin. Not affiliated with Apple or Zoom.
 
 macOS 13+ · arm64 · OBS Studio **32.2.2**
+
+**Download (macOS Apple Silicon):** [obs-airplay-0.2.0-macos-arm64.pkg](https://github.com/dgraid/obs-airplay-plugin/releases/latest/download/obs-airplay-0.2.0-macos-arm64.pkg)
 
 ![Waiting screen in OBS](docs/images/02-idle-stub.png)
 
@@ -25,7 +31,7 @@ macOS 13+ · arm64 · OBS Studio **32.2.2**
 
 Quit OBS first.
 
-**Installer:** double-click `obs-airplay-0.2.0-macos-arm64.pkg` from [Releases](../../releases) (after the first GitHub release). No admin password. Payload:
+**Installer:** double-click [obs-airplay-0.2.0-macos-arm64.pkg](https://github.com/dgraid/obs-airplay-plugin/releases/latest/download/obs-airplay-0.2.0-macos-arm64.pkg) (also on [Releases](https://github.com/dgraid/obs-airplay-plugin/releases)). No admin password. Payload:
 
 `~/Library/Application Support/obs-studio/plugins/obs-airplay.plugin`
 
@@ -108,14 +114,11 @@ That is a fact, not a sales pitch. Treat the plugin as experimental. File crashe
 
 `docs/BUILD.md`. Pins: OBS 32.2.2, UxPlay v1.73.6 `21eef8df25d91e12635c36d8176ad192725baca2`.
 
-## Downloads (after first GitHub Release)
+## Downloads
 
-Release asset download counts (the `.pkg`, not the source zip):
+- Latest `.pkg`: https://github.com/dgraid/obs-airplay-plugin/releases/latest
+- Counts (GitHub counts the attached `.pkg`, not the source zip):
 
 ```bash
-gh api repos/OWNER/REPO/releases --jq '.[] | {tag: .tag_name, assets: [.assets[] | {name, download_count}]}'
+gh api repos/dgraid/obs-airplay-plugin/releases --jq '.[] | {tag: .tag_name, assets: [.assets[] | {name, download_count}]}'
 ```
-
-Badge (replace OWNER/REPO):
-
-`https://img.shields.io/github/downloads/OWNER/REPO/total`
