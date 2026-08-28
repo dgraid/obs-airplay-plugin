@@ -58,7 +58,8 @@ The protocol still carries: monotonic ns, geometry, pixel format, sample rate/ch
 
 ## Helper lifecycle
 
-- Spawned when the OBS source becomes active, not at OBS launch.
+- Spawned when the OBS source is **created** (collection load / add source), not at OBS launch and not on Program `activate`.
+- Scene `deactivate` does not stop the helper; Bonjour stays advertised while the source exists.
 - Graceful SIGTERM, SIGKILL after timeout.
 - Restart: 0.5s, 1s, 2s, 4s, cap 8s; max 10 restarts / 30s then `failed`.
 - Kill helper during streaming must not crash OBS (plugin read loop treats EOF as disconnected).

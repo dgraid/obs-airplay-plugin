@@ -886,6 +886,7 @@ void *create(obs_data_t *settings, obs_source_t *source) {
     g_sources.push_back(s);
   }
   s->push_stub();
+  s->start();
   return s;
 }
 
@@ -893,11 +894,9 @@ void activate(void *data) {
   auto *s = (Source *)data;
   if (s->last_state.load() != (uint32_t)State::Streaming)
     s->show_placeholder();
-  if (!s->run.load())
-    s->start();
 }
 
-void deactivate(void *data) { ((Source *)data)->stop(); }
+void deactivate(void *) {}
 
 void destroy(void *data) {
   auto *s = (Source *)data;

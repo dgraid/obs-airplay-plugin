@@ -1,5 +1,11 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-08-28 (helper lives with the source)
+
+- Helper starts on source **create**, stops on **destroy**. Leaving the Program scene no longer kills Bonjour, drops the iPhone session, or fires on-disconnect scene automation.
+- Tools scene automation no longer requires the AirPlay source on both scenes.
+- Breaking: no.
+
 ## 0.2.1 (rebuild installer)
 
 - Fresh unsigned `.pkg` from current `master` (`obs-airplay-0.2.1-macos-arm64.pkg`). Same plugin behavior as 0.2.0 source; the 0.2.0 GitHub asset was an older local build.

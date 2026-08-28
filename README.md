@@ -65,7 +65,7 @@ AirDrop/USB often skip that prompt.
 
    ![Add source](docs/images/01-add-source.png)
 
-2. Leave the source on the active scene. The canvas shows the waiting card:
+2. The receiver advertises as soon as the source exists (any scene). The canvas shows the waiting card:
 
    ![Idle stub](docs/images/02-idle-stub.png)
 

@@ -50,7 +50,7 @@ Helper `send_state` skips duplicate states. `video_resume` does **not** set Stre
 - Signal: `airplay_status` on `obs_get_signal_handler()` (`ptr source`, `bool connected`). Proc: `get_airplay_status`.
 - Source size (OBS) stays canvas. Live frames contain-scaled; **margins are transparent** (scene shows through), not black bars. Idle (no session) = connect instructions at canvas size. **Paused** = lock-specific stub at last iPhone native WxH, letterboxed into the same canvas (phone rectangle does not jump to 16:9). Never a frozen last frame. Visual idle/live/pause **crossfade ~300ms**; the inner rect **morphs** wide↔narrow with **linear size** (fade stays eased). Content is contain-scaled into the moving window so Stop Mirroring **scales** the 16:9 graphic to 1080 instead of crop-jumping. Status signal is immediate.
 - Audio pad `audio_gain_db` default −6. iPhone volume is not capture level (`SET_PARAMETER volume` ignored; feature bit 3 off).
-- Helper starts on source **activate**, stops on **deactivate**. Persistent random MAC in source settings `device_mac`.
+- Helper starts on source **create**, stops on **destroy**. `deactivate` is a no-op so a Program scene switch does not unpublish Bonjour or drop the session. Persistent random MAC in source settings `device_mac`.
 - Restart backoff: 0.5s … cap 8s; max 10 / 30s then Failed. Kill helper ≠ kill OBS.
 
 ## iPhone lock / unlock (confirmed 2026-08-23)

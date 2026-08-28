@@ -41,7 +41,8 @@ Not a Zoom product. Zoom `airhost.app` was audited read-only as a process-isolat
 - Streaming: helper BGRA is contain-scaled into the same canvas (transparent margins, not black bars).
 - `Paused`: session still up (iPhone lock via `0x56`/`0x5e` only). Lock-specific stub at last iPhone size, letterboxed into the canvas. A static screen keeps the last frame — video silence is not lock. Identical SPS/PPS on wake does **not** recreate VideoToolbox. `connected` remains true so on-disconnect scene automation does not fire. Unlock / next decoded frame returns to Streaming. Wi-Fi off / vanished client: no `/feedback` for ≥8s → Discoverable (connect stub), `connected=false`. Idle/live/pause pixels crossfade ~300ms; inner rect size lerps linearly (contain-scale, not crop). `airplay_status` is not delayed.
 - `connected` is true in `Streaming` **or** `Paused`. Lua listens to `airplay_status` (see `docs/DECISIONS.md`). iOS does not send lock-screen frames over mirroring.
-- AirPlay Bonjour name = OBS source name (rename the source to rename the receiver). Stub language and scene automation: Tools → AirPlay Receiver. Stored in `obs-airplay.json`.
+- Helper lifetime is the source object (`create`/`destroy`). Switching Program scenes does not unpublish Bonjour or drop the session. `airplay_status` on scene switch is not a disconnect.
+- AirPlay Bonjour name = OBS source name (rename the source to rename the receiver). Stub language and scene automation: Tools → AirPlay Receiver. Stored in `obs-airplay.json`. The source need not be duplicated onto both automation scenes.
 - Audio: AAC-ELD → float, pad `audio_gain_db` (default −6 dB). iPhone volume buttons are not capture level; ride the OBS mixer.
 
 ## Status (2026-08-23)
