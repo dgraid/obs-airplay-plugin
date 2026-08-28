@@ -7,19 +7,19 @@ Maintainer machine, Apple Silicon, OBS 32.2.2 installed.
 1. iPhone on the same Wi-Fi: first mirror, lock/unlock, helper kill, reconnect. 2h soak if claiming stability.
 2. Replace README placeholders: Control Center picker + live preview (`docs/images/05-iphone-picker.png`, `docs/images/06-live-preview.png`).
 3. `./scripts/package_pkg.sh`
-4. `shasum -a 256 dist/obs-airplay-0.2.0-macos-arm64.pkg`
+4. `shasum -a 256 dist/obs-airplay-<version>-macos-arm64.pkg`
 
 ## GitHub (only after explicit «пуш»)
 
 Needs OWNER/REPO from the maintainer.
 
 ```bash
-git tag -a 0.2.0 -m "0.2.0"
+git tag -a 0.2.1 -m "0.2.1"
 git push origin master
-git push origin 0.2.0
-gh release create 0.2.0 \
-  dist/obs-airplay-0.2.0-macos-arm64.pkg \
-  --title "0.2.0" \
+git push origin 0.2.1
+gh release create 0.2.1 \
+  dist/obs-airplay-0.2.1-macos-arm64.pkg \
+  --title "0.2.1" \
   --notes-file docs/CHANGELOG.md
 ```
 

@@ -31,7 +31,7 @@ Installer `.pkg` (unsigned, current-user home, arm64):
 ./scripts/package_pkg.sh
 ```
 
-Writes `dist/obs-airplay-0.2.0-macos-arm64.pkg`. Needs the bundle already built. Not notarized — see README Gatekeeper notes.
+Writes `dist/obs-airplay-<version>-macos-arm64.pkg` from `CMakeLists.txt` `project()` VERSION. Needs the bundle already built. Not notarized — see README Gatekeeper notes.
 
 Headers: `vendor/obs-studio-32.2.2/libobs` (OBS 32.2.2 tag). Link: `/Applications/OBS.app/Contents/Frameworks/libobs.framework`.
 

@@ -104,7 +104,7 @@ open -a OBS
 - `cmake --build` linking **only** `AirPlayReceiverHelper` used to leave `obs-airplay.plugin` stale: POST_BUILD lived only on the plugin MODULE. Helper POST_BUILD now copies into the plugin bundle; `add_dependencies(obs-airplay AirPlayReceiverHelper)`.
 - Proof of ship: mtime + `strings` on **installed** helper under `~/Library/.../plugins/obs-airplay.plugin/.../AirPlayReceiverHelper`, not just `build/AirPlayReceiverHelper.app`.
 - Install dest: user plugins dir only. No sudo. Never write into `/Applications/OBS.app`.
-- Unsigned `.pkg`: `./scripts/package_pkg.sh` → `dist/obs-airplay-0.2.0-macos-arm64.pkg` (`enable_currentUserHome`). Not notarized.
+- Unsigned `.pkg`: `./scripts/package_pkg.sh` → `dist/obs-airplay-<version>-macos-arm64.pkg` (`enable_currentUserHome`). Not notarized.
 - arm64 only. Native Homebrew `/opt/homebrew`. No `/usr/local` Intel brew. No SIP/Gatekeeper bypass.
 
 OBS log: `~/Library/Application Support/obs-studio/logs/`. Helper stderr is prefixed `[obs-airplay] [helper]`.

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(obs-airplay VERSION 0.2.0 LANGUAGES C CXX OBJCXX)
+project(obs-airplay VERSION 0.2.1 LANGUAGES C CXX OBJCXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

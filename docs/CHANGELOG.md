@@ -1,5 +1,10 @@
 # Changelog vs mika314/obs-airplay
 
+## 0.2.1 (rebuild installer)
+
+- Fresh unsigned `.pkg` from current `master` (`obs-airplay-0.2.1-macos-arm64.pkg`). Same plugin behavior as 0.2.0 source; the 0.2.0 GitHub asset was an older local build.
+- Breaking: no.
+
 ## 0.2.0 (public packaging)
 
 - Public name: **AirPlay Receiver for OBS**. README, LICENSE (GPL-2.0-or-later), NOTICE, `docs/RELEASE.md`, `docs/ANNOUNCE.md`.
