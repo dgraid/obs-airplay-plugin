@@ -1,6 +1,6 @@
 # Changelog vs mika314/obs-airplay
 
-## 2026-08-28 (helper lives with the source)
+## 0.2.2 (helper lives with the source)
 
 - Helper starts on source **create**, stops on **destroy**. Leaving the Program scene no longer kills Bonjour, drops the iPhone session, or fires on-disconnect scene automation.
 - Tools scene automation no longer requires the AirPlay source on both scenes.

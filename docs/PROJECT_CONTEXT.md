@@ -45,8 +45,8 @@ Not a Zoom product. Zoom `airhost.app` was audited read-only as a process-isolat
 - AirPlay Bonjour name = OBS source name (rename the source to rename the receiver). Stub language and scene automation: Tools → AirPlay Receiver. Stored in `obs-airplay.json`. The source need not be duplicated onto both automation scenes.
 - Audio: AAC-ELD → float, pad `audio_gain_db` (default −6 dB). iPhone volume buttons are not capture level; ride the OBS mixer.
 
-## Status (2026-08-23)
+## Status (2026-08-28)
 
-Shippable **bundle** exists (arm64, rpath, ad-hoc sign). Unsigned **`.pkg`** via `scripts/package_pkg.sh` → `dist/obs-airplay-0.2.1-macos-arm64.pkg` (currentUserHome, no sudo). Plugin **loads** in OBS 32.2.2. Live Screen Mirroring works. **iPhone lock → stub, unlock → live video** confirmed (no Stop Mirroring). Notarize is not in this tree.
+Shippable **bundle** exists (arm64, rpath, ad-hoc sign). Unsigned **`.pkg`** via `scripts/package_pkg.sh` → `dist/obs-airplay-0.2.2-macos-arm64.pkg` (currentUserHome, no sudo). Plugin **loads** in OBS 32.2.2. Live Screen Mirroring works. Helper lifetime is the source object (scene switch does not kill Bonjour). **iPhone lock → stub, unlock → live video** confirmed (no Stop Mirroring). Notarize is not in this tree. Owner **«Отгрузи на гитхаб»** means a tagged GitHub Release with the `.pkg`, not a bare push (`docs/RELEASE.md`).
 
 Still **BLOCKED** without the owner: 2h soak, reconnect ≥20, Wi-Fi toggle, create/delete in the UI, Zoom `--live` port/TXT re-check. Kill-helper-while-streaming already PASS (`docs/TEST_REPORT.md`).

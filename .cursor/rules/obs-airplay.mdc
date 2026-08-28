@@ -24,6 +24,8 @@ Helper + thin plugin. UxPlay + VideoToolbox + FFmpeg stay in `AirPlayReceiverHel
 
 After helper/plugin changes: `cmake --build build`, then `strings` on **bundled** helper (`obs-airplay.plugin/Contents/Resources/.../AirPlayReceiverHelper`) for the new format, quit OBS, `./scripts/install.sh`, `open -a OBS`. Linking the helper app alone used to leave a stale plugin bundle.
 
+Owner **«Отгрузи на гитхаб»** = bump CMake `VERSION` + `.pkg` + docs/links + annotated tag + `gh release create` (pkg + SHA-256). Not a bare `git push`. See `docs/RELEASE.md`.
+
 ## Operator
 
-Agent runs build/test/install/OBS restart. Owner only for iPhone and product calls. Local commit after substantial edits. Push only if the owner asked. Unrun tests are BLOCKED, not pass.
+Agent runs build/test/install/OBS restart. Owner only for iPhone and product calls. Local commit after substantial edits. Push / GitHub Release only if the owner asked. Unrun tests are BLOCKED, not pass.

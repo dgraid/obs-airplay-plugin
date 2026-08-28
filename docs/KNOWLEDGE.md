@@ -114,7 +114,8 @@ OBS log: `~/Library/Application Support/obs-studio/logs/`. Helper stderr is pref
 Owner chats only. Agent writes code, builds, quits/reinstalls/relaunches OBS, runs checks, local-commits. Do not ask the owner to run terminal commands.
 
 - Local git commit after substantial code/docs. Branch `master` unless asked otherwise.
-- `git push` / GitHub / deploy only on an explicit owner phrase.
+- `git push` / GitHub only on an explicit owner phrase.
+- **«Отгрузи на гитхаб»** = full release: bump CMake `VERSION`, rebuild, `./scripts/package_pkg.sh`, README/CHANGELOG links, commit, annotated tag, push `master` + tag, `gh release create` with `.pkg` + SHA-256. Bare `git push` is not a ship. See `docs/RELEASE.md`.
 - Confirmation matrix (user rule 3): minor = do; usual = short plan then wait; architecture = wait for «делай».
 - No unit ctest in this tree. After decode/IPC/plugin changes: build + install + confirm plugin load in the newest OBS log. Live lock/unlock needs the owner’s iPhone.
 - Tests not run are **BLOCKED**, not pass (`docs/TEST_REPORT.md`).
