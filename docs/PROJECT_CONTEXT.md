@@ -43,6 +43,7 @@ Not a Zoom product. Zoom `airhost.app` was audited read-only as a process-isolat
 - `connected` is true in `Streaming` **or** `Paused`. Lua listens to `airplay_status` (see `docs/DECISIONS.md`). iOS does not send lock-screen frames over mirroring.
 - Helper lifetime is the source object (`create`/`destroy`). Switching Program scenes does not unpublish Bonjour or drop the session. `airplay_status` on scene switch is not a disconnect.
 - AirPlay Bonjour name = OBS source name (rename the source to rename the receiver). Stub language and scene automation: Tools → AirPlay Receiver. Stored in `obs-airplay.json`. The source need not be duplicated onto both automation scenes.
+- Receiver identity: persistent `device_mac` in source settings + pairing key `plugin_config/obs-airplay/keys/<uuid>.pem`. Feature bit 27 off (no legacy pair-setup). Deleting the source is a new receiver.
 - Audio: AAC-ELD → float, pad `audio_gain_db` (default −6 dB). iPhone volume buttons are not capture level; ride the OBS mixer.
 
 ## Status (2026-08-28)

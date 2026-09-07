@@ -1,5 +1,12 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-09-07 (faster connect, stable identity)
+
+- Bonjour feature bit 27 (legacy pairing) **off**, same as UxPlay 1.65+ default. iOS skips pair-setup (~5s). Helper is still single-client.
+- Pairing Ed25519 key is persistent per source (`plugin_config/obs-airplay/keys/<uuid>.pem`), not `/tmp/<pid>.key`. MAC was already persistent. Mac Screen Mirroring can remember mirror/extend; iPhone sees the same receiver after OBS restart.
+- Helper INFO-logs `/pair-setup` / `/pair-verify` if a client still sends them.
+- Breaking: no. Delete the OBS source → new MAC + new key (Mac will ask display mode again).
+
 ## 0.2.2 (helper lives with the source)
 
 - Helper starts on source **create**, stops on **destroy**. Leaving the Program scene no longer kills Bonjour, drops the iPhone session, or fires on-disconnect scene automation.

@@ -379,6 +379,27 @@ struct Source {
     return true;
   }
 
+  std::string pairing_key_path() {
+    char *dir = obs_module_get_config_path(obs_current_module(), "keys");
+    if (dir) {
+      os_mkdirs(dir);
+      bfree(dir);
+    }
+    const char *uuid = source ? obs_source_get_uuid(source) : nullptr;
+    std::string rel = "keys/";
+    if (uuid && *uuid)
+      rel += uuid;
+    else if (!device_mac.empty())
+      rel += device_mac;
+    else
+      rel += "default";
+    rel += ".pem";
+    char *p = obs_module_get_config_path(obs_current_module(), rel.c_str());
+    std::string out = p ? p : "";
+    bfree(p);
+    return out;
+  }
+
   bool spawn() {
     std::string hp = helper_path();
     if (hp.empty() || access(hp.c_str(), X_OK) != 0) {
@@ -396,6 +417,7 @@ struct Source {
     std::string mf = std::to_string(max_fps);
     if (device_mac.empty())
       device_mac = make_mac();
+    std::string key_path = pairing_key_path();
     const char *argv[] = {hp.c_str(),
                           "--socket",
                           sock_path.c_str(),
@@ -411,6 +433,8 @@ struct Source {
                           mf.c_str(),
                           "--mac",
                           device_mac.c_str(),
+                          "--key",
+                          key_path.c_str(),
                           nullptr};
     int errpipe[2];
     if (pipe(errpipe) != 0) {

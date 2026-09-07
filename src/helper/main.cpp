@@ -304,6 +304,7 @@ int main(int argc, char **argv) {
   int max_w = 1920, max_h = 1080, max_fps = 30;
   bool use_random_mac = true;
   std::string mac_arg;
+  std::string key_arg;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
     auto next = [&](int &dst) {
@@ -324,11 +325,13 @@ int main(int argc, char **argv) {
       next(max_fps);
     else if (a == "--mac" && i + 1 < argc)
       mac_arg = argv[++i];
+    else if (a == "--key" && i + 1 < argc)
+      key_arg = argv[++i];
     else if (a == "--system-mac")
       use_random_mac = false;
   }
   if (sock_path.empty()) {
-    fprintf(stderr, "usage: AirPlayReceiverHelper --socket PATH [--name NAME]\n");
+    fprintf(stderr, "usage: AirPlayReceiverHelper --socket PATH [--name NAME] [--key FILE]\n");
     return 2;
   }
 
@@ -367,7 +370,8 @@ int main(int argc, char **argv) {
   }
   dnssd_set_airplay_features(g_dnssd, 7, 1);
   dnssd_set_airplay_features(g_dnssd, 9, 1);
-  dnssd_set_airplay_features(g_dnssd, 27, 1);
+  // UxPlay 1.65+: bit 27 off skips pair-setup (~5s). Single-client, same as uxplay default.
+  dnssd_set_airplay_features(g_dnssd, 27, 0);
   dnssd_set_airplay_features(g_dnssd, 30, 1);
   dnssd_set_airplay_features(g_dnssd, 0, 0);
   dnssd_set_airplay_features(g_dnssd, 4, 0);
@@ -419,9 +423,14 @@ int main(int argc, char **argv) {
   raop_set_log_callback(g_raop, on_log, nullptr);
   raop_set_log_level(g_raop, LOGGER_INFO);
 
-  char keyfile[256];
-  snprintf(keyfile, sizeof(keyfile), "/tmp/obs-airplay-%d.key", (int)getpid());
-  if (raop_init2(g_raop, 1, mac.c_str(), keyfile) != 0) {
+  std::string keyfile = key_arg;
+  if (keyfile.empty()) {
+    char tmpkey[256];
+    snprintf(tmpkey, sizeof(tmpkey), "/tmp/obs-airplay-%d.key", (int)getpid());
+    keyfile = tmpkey;
+  }
+  fprintf(stderr, "[helper] pairing key %s\n", keyfile.c_str());
+  if (raop_init2(g_raop, 1, mac.c_str(), keyfile.c_str()) != 0) {
     fprintf(stderr, "raop_init2 failed\n");
     send_state(State::Failed);
     return 1;
@@ -465,6 +474,7 @@ int main(int argc, char **argv) {
   raop_destroy(g_raop);
   dnssd_destroy(g_dnssd);
   close(fd);
-  unlink(keyfile);
+  if (key_arg.empty())
+    unlink(keyfile.c_str());
   return 0;
 }
