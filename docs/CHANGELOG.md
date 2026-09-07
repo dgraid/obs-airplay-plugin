@@ -1,5 +1,13 @@
 # Changelog vs mika314/obs-airplay
 
+## 0.2.3 (connect, stop morph, installer)
+
+- Faster first connect: feature bit 27 off, persistent pairing key per source.
+- Stop Mirroring is disconnect, not iPhone lock (100 ms debounce on `0x56`/`0x5e`).
+- Disconnect/pause morph pumped at ~60 Hz.
+- `.pkg` installs while OBS is open; restart is optional (default Later).
+- Breaking: no. Delete the OBS source → new MAC + new key.
+
 ## 2026-09-07 (pkg install while OBS is open)
 
 - `.pkg` no longer aborts if OBS is running. Install finishes; postinstall offers a restart so OBS loads the new plugin. Default button is Later. arm64-only check stays in preinstall.

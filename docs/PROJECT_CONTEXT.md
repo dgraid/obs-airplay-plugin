@@ -48,6 +48,6 @@ Not a Zoom product. Zoom `airhost.app` was audited read-only as a process-isolat
 
 ## Status (2026-08-28)
 
-Shippable **bundle** exists (arm64, rpath, ad-hoc sign). Unsigned **`.pkg`** via `scripts/package_pkg.sh` → `dist/obs-airplay-0.2.2-macos-arm64.pkg` (currentUserHome, no sudo). Installer no longer aborts if OBS is open; postinstall offers an optional restart. Plugin **loads** in OBS 32.2.2. Live Screen Mirroring works. Helper lifetime is the source object (scene switch does not kill Bonjour). **iPhone lock → stub, unlock → live video** confirmed (no Stop Mirroring). Notarize is not in this tree. Owner **«Отгрузи на гитхаб»** means a tagged GitHub Release with the `.pkg`, not a bare push (`docs/RELEASE.md`).
+Shippable **bundle** exists (arm64, rpath, ad-hoc sign). Unsigned **`.pkg`** via `scripts/package_pkg.sh` → `dist/obs-airplay-0.2.3-macos-arm64.pkg` (currentUserHome, no sudo). GitHub Release: **0.2.3**. Installer no longer aborts if OBS is open; postinstall offers an optional restart. Plugin **loads** in OBS 32.2.2. Live Screen Mirroring works. Helper lifetime is the source object (scene switch does not kill Bonjour). **iPhone lock → stub, unlock → live video** confirmed. Notarize is not in this tree. Owner **«Отгрузи на гитхаб»** means a tagged GitHub Release with the `.pkg`, not a bare push (`docs/RELEASE.md`).
 
 Still **BLOCKED** without the owner: 2h soak, reconnect ≥20, Wi-Fi toggle, create/delete in the UI, Zoom `--live` port/TXT re-check. Kill-helper-while-streaming already PASS (`docs/TEST_REPORT.md`).
