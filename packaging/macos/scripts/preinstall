@@ -12,8 +12,4 @@ if [[ "$(uname -m)" != "arm64" ]]; then
   fail "OBS AirPlay is Apple Silicon only (arm64). This Mac is $(uname -m)."
 fi
 
-if pgrep -x OBS >/dev/null 2>&1; then
-  fail "Закройте OBS и запустите установщик снова. Quit OBS, then run this installer again."
-fi
-
 exit 0

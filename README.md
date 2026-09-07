@@ -29,7 +29,7 @@ macOS 13+ · arm64 · OBS Studio **32.2.2**
 
 ## Install
 
-Quit OBS first.
+OBS may stay open. The installer finishes and offers a restart so OBS loads the new plugin. Restart is optional.
 
 **Installer:** double-click [obs-airplay-0.2.2-macos-arm64.pkg](https://github.com/dgraid/obs-airplay-plugin/releases/latest/download/obs-airplay-0.2.2-macos-arm64.pkg) (also on [Releases](https://github.com/dgraid/obs-airplay-plugin/releases)). No admin password. Payload:
 

@@ -34,4 +34,43 @@ if [[ "$(id -u)" -eq 0 && -n "${console_user:-}" && "$console_user" != "root" ]]
 fi
 
 echo "Installed $dest"
+
+as_console_user() {
+  if [[ "$(id -u)" -eq 0 && -n "${console_user:-}" && "$console_user" != "root" && "$console_user" != "loginwindow" ]]; then
+    launchctl asuser "$(id -u "$console_user")" sudo -u "$console_user" "$@"
+  else
+    "$@"
+  fi
+}
+
+# OBS keeps the old plugin mapped until it relaunches. Never fail the pkg over this.
+offer_obs_restart() {
+  pgrep -x OBS >/dev/null 2>&1 || return 0
+
+  local choice
+  choice="$(as_console_user osascript -e 'button returned of (display dialog "Плагин установлен. Перезапустите OBS, чтобы загрузить новую версию.
+
+The plugin is installed. Restart OBS to load the new version." buttons {"Позже", "Перезапустить OBS"} default button 1 with title "AirPlay Receiver for OBS" with icon note)' 2>/dev/null || true)"
+
+  [[ "$choice" == "Перезапустить OBS" ]] || return 0
+
+  as_console_user osascript -e 'tell application "OBS" to quit' >/dev/null 2>&1 || true
+
+  local n=0
+  while pgrep -x OBS >/dev/null 2>&1 && [[ $n -lt 40 ]]; do
+    sleep 0.25
+    n=$((n + 1))
+  done
+
+  if pgrep -x OBS >/dev/null 2>&1; then
+    as_console_user osascript -e 'display dialog "OBS не закрылся (возможно, диалог сохранения). Закройте его вручную и откройте снова.
+
+OBS did not quit (a save dialog may be open). Close it yourself, then reopen." buttons {"OK"} default button 1 with icon caution' >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  as_console_user open -a OBS >/dev/null 2>&1 || true
+}
+
+offer_obs_restart || true
 exit 0

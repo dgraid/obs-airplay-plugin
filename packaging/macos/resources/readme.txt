@@ -3,7 +3,7 @@ OBS AirPlay Receiver (arm64)
 Installs into (no admin password):
   ~/Library/Application Support/obs-studio/plugins/obs-airplay.plugin
 
-Quit OBS before installing. Does not write into /Applications/OBS.app.
+OBS may stay open. The installer finishes anyway and offers a restart so OBS loads the new plugin. Restart is optional. Does not write into /Applications/OBS.app.
 
 This package is ad-hoc signed and not notarized (no Apple Developer ID).
 

@@ -97,7 +97,7 @@ cmake --build build
 strings build/obs-airplay.plugin/Contents/Resources/AirPlayReceiverHelper.app/Contents/MacOS/AirPlayReceiverHelper \
   | grep 'nal=%d vt=%d recre=%d'
 osascript -e 'tell application "OBS" to quit'
-./scripts/install.sh    # fails if OBS still running
+./scripts/install.sh    # copies over a running OBS; restart OBS to load the new plugin
 open -a OBS
 ```
 
