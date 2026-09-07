@@ -46,10 +46,13 @@ static std::atomic<uint64_t> g_last_feedback_ns{0};
 static std::atomic<int> g_session_open{0};
 static std::atomic<int> g_drop_session{0};
 static std::atomic<uint32_t> g_ipc_state{(uint32_t)State::Starting};
+static std::atomic<uint64_t> g_pause_pending_ns{0};
 
-// iPhone lock = 0x56/0x5e (video_pause). Static screen also stops video but is not lock.
-// Wi-Fi death stops POST /feedback (~2s cadence).
+// iPhone lock = 0x56/0x5e (video_pause). Stop Mirroring often sends the same packet ~20–40ms
+// before TCP close — wait before Paused so disconnect is one morph, not pause-stub then idle.
+// Static screen also stops video but is not lock. Wi-Fi death stops POST /feedback (~2s cadence).
 static constexpr uint64_t kFeedbackDeadNs = 8000000000ull;
+static constexpr uint64_t kPauseDebounceNs = 100000000ull;
 
 static uint64_t now_ns() {
   using namespace std::chrono;
@@ -138,8 +141,13 @@ static void on_log(void *, int, const char *msg) {
     fprintf(stderr, "[helper] %s\n", msg);
 }
 
+static void clear_pause_pending() {
+  g_pause_pending_ns.store(0, std::memory_order_relaxed);
+}
+
 static void request_session_drop(const char *why) {
   fprintf(stderr, "[helper] drop session: %s\n", why);
+  clear_pause_pending();
   send_state(State::Discoverable);
   g_drop_session.store(1, std::memory_order_relaxed);
 }
@@ -147,12 +155,14 @@ static void request_session_drop(const char *why) {
 static void conn_init(void *) {
   g_session_open.fetch_add(1, std::memory_order_relaxed);
   g_last_feedback_ns.store(now_ns(), std::memory_order_relaxed);
+  clear_pause_pending();
   send_state(State::Connecting);
 }
 static void conn_destroy(void *) {
   int n = g_session_open.load(std::memory_order_relaxed);
   if (n > 0)
     g_session_open.fetch_sub(1, std::memory_order_relaxed);
+  clear_pause_pending();
   send_state(State::Discoverable);
 }
 static void conn_reset(void *, int reason) {
@@ -163,11 +173,13 @@ static void conn_teardown(void *, bool *, bool *) {}
 static void audio_flush(void *) {}
 static void video_flush(void *) { g_vdec.reset_session(); }
 static void video_pause(void *) {
-  fprintf(stderr, "[helper] video_pause (client sleep)\n");
-  send_state(State::Paused);
+  fprintf(stderr, "[helper] video_pause pending (0x56/0x5e; wait %llums)\n",
+          (unsigned long long)(kPauseDebounceNs / 1000000ull));
+  g_pause_pending_ns.store(now_ns(), std::memory_order_relaxed);
 }
 static void video_resume(void *) {
   fprintf(stderr, "[helper] video_resume (client wake)\n");
+  clear_pause_pending();
 }
 static void conn_feedback(void *) {
   g_last_feedback_ns.store(now_ns(), std::memory_order_relaxed);
@@ -175,6 +187,13 @@ static void conn_feedback(void *) {
 
 static void check_session_health() {
   uint64_t now = now_ns();
+  uint64_t pending = g_pause_pending_ns.load(std::memory_order_relaxed);
+  if (pending && now >= pending && now - pending >= kPauseDebounceNs) {
+    if (g_pause_pending_ns.compare_exchange_strong(pending, 0, std::memory_order_relaxed)) {
+      fprintf(stderr, "[helper] video_pause confirmed (client sleep)\n");
+      send_state(State::Paused);
+    }
+  }
   uint32_t st = g_ipc_state.load(std::memory_order_relaxed);
   if (g_session_open.load(std::memory_order_relaxed) > 0 &&
       (st == (uint32_t)State::Connecting || st == (uint32_t)State::Streaming ||
@@ -464,7 +483,7 @@ int main(int argc, char **argv) {
   warn_other_receivers();
 
   while (g_run) {
-    usleep(250000);
+    usleep(20000);
     check_session_health();
   }
 

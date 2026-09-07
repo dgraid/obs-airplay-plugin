@@ -1,5 +1,10 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-09-07 (Stop Mirroring vs lock)
+
+- `0x56`/`0x5e` is also sent on Stop Mirroring, ~20–40ms before TCP close. Immediate Paused started a lock-stub fade, then Discoverable restarted it — hitch on stop. Helper now waits 100ms; if the session dies, skip Paused and morph live → connect stub once. Real lock still shows the pause card after the wait.
+- Breaking: no.
+
 ## 2026-09-07 (faster connect, stable identity)
 
 - Bonjour feature bit 27 (legacy pairing) **off**, same as UxPlay 1.65+ default. iOS skips pair-setup (~5s). Helper is still single-client.
