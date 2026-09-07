@@ -13,6 +13,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdint>
 #include <csignal>
 #include <cstring>
@@ -317,6 +318,8 @@ struct Source {
   std::thread reader;
   std::thread supervisor;
   std::thread log_thread;
+  std::thread fade_pump;
+  std::condition_variable fade_cv;
   uint32_t width = 16, height = 16;
   uint32_t native_w = 0, native_h = 0;
   std::chrono::steady_clock::time_point last_start;
@@ -538,6 +541,7 @@ struct Source {
     fade_fh = dest_h;
     fade_t0 = os_gettime_ns();
     fade_on = true;
+    fade_cv.notify_one();
   }
 
   void composite_and_emit_locked(uint64_t ts) {
@@ -770,6 +774,23 @@ struct Source {
     }
   }
 
+  void fade_pump_loop() {
+    while (run.load()) {
+      std::unique_lock<std::mutex> lock(mu);
+      fade_cv.wait(lock, [&] {
+        return !run.load() || (fade_on && !state_is_live(last_state.load()));
+      });
+      if (!run.load())
+        break;
+      while (run.load() && fade_on && !state_is_live(last_state.load())) {
+        composite_and_emit_locked(0);
+        lock.unlock();
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        lock.lock();
+      }
+    }
+  }
+
   void start() {
     if (run.load())
       return;
@@ -779,10 +800,13 @@ struct Source {
     if (spawn())
       reader = std::thread([this] { reader_loop(); });
     supervisor = std::thread([this] { supervisor_loop(); });
+    if (!fade_pump.joinable())
+      fade_pump = std::thread([this] { fade_pump_loop(); });
   }
 
   void stop() {
     run = false;
+    fade_cv.notify_all();
     if (conn_fd >= 0)
       shutdown(conn_fd, SHUT_RDWR);
     stop_helper();
@@ -793,6 +817,8 @@ struct Source {
       supervisor.join();
     if (log_thread.joinable())
       log_thread.join();
+    if (fade_pump.joinable())
+      fade_pump.join();
     last_state.store((uint32_t)State::Disconnected);
     publish_status(false);
     {
@@ -826,14 +852,10 @@ struct Source {
       if (cw != width || ch != height) {
         cancel_fade_locked();
         rebuild = true;
-      } else if (fade_on) {
-        if (last_state.load() != (uint32_t)State::Streaming)
+      } else if (fade_on && state_is_live(last_state.load())) {
+        const uint64_t now = os_gettime_ns();
+        if (last_emit_ns == 0 || now - last_emit_ns >= 8000000ull)
           pump = true;
-        else {
-          const uint64_t now = os_gettime_ns();
-          if (last_emit_ns == 0 || now - last_emit_ns >= 8000000ull)
-            pump = true;
-        }
       }
     }
     if (rebuild) {

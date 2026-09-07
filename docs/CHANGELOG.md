@@ -1,5 +1,10 @@
 # Changelog vs mika314/obs-airplay
 
+## 2026-09-07 (smooth disconnect morph)
+
+- Idle/pause morph is pumped at ~60 Hz from a plugin thread. Disconnect used to advance only on OBS `video_tick` (25 fps canvas → ~8 steps / 300 ms, stepped letterbox). Connect was already smooth because live frames drove the lerp. Same 300 ms linear size + eased fade.
+- Breaking: no.
+
 ## 2026-09-07 (Stop Mirroring vs lock)
 
 - `0x56`/`0x5e` is also sent on Stop Mirroring, ~20–40ms before TCP close. Immediate Paused started a lock-stub fade, then Discoverable restarted it — hitch on stop. Helper now waits 100ms; if the session dies, skip Paused and morph live → connect stub once. Real lock still shows the pause card after the wait.
