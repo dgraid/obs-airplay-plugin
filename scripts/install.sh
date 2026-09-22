@@ -15,7 +15,8 @@ fi
 
 mkdir -p "$(dirname "$DEST")"
 rm -rf "$DEST"
-ditto "$SRC" "$DEST"
+ditto --norsrc --noextattr --noacl "$SRC" "$DEST"
+xattr -cr "$DEST" >/dev/null 2>&1 || true
 codesign --force --deep --sign - --timestamp=none "$DEST" >/dev/null
 echo "Installed $DEST"
 if pgrep -x OBS >/dev/null 2>&1; then

@@ -30,7 +30,7 @@ rm -rf "$WORK"
 mkdir -p "$PKGROOT/Library/Application Support/obs-studio/plugins"
 mkdir -p "$SCRIPTS_DST" "$RES_DST" "$DIST_DIR"
 
-ditto "$SRC" "$PKGROOT/Library/Application Support/obs-studio/plugins/obs-airplay.plugin"
+ditto --norsrc --noextattr --noacl "$SRC" "$PKGROOT/Library/Application Support/obs-studio/plugins/obs-airplay.plugin"
 codesign --force --deep --sign - --timestamp=none \
   "$PKGROOT/Library/Application Support/obs-studio/plugins/obs-airplay.plugin" >/dev/null
 

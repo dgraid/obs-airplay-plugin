@@ -13,5 +13,8 @@ If macOS says the developer cannot be verified:
 
 AirDrop / USB often skips quarantine; a download from the internet usually does not.
 
+macOS 26: the installer rewrites the installed plugin onto a new inode so OBS can load it after a GitHub download. Restart OBS after install. Homebrew is not required.
+
 После установки: OBS → Sources → + → AirPlay Receiver.
 Если macOS пишет «разработчик не проверен»: Control-click по .pkg → Открыть.
+Если OBS пишет, что плагин не загрузился — поставь эту версию ещё раз и перезапусти OBS.

@@ -26,8 +26,32 @@ if [[ -z "$dest" ]]; then
   exit 1
 fi
 
-xattr -cr "$dest" >/dev/null 2>&1 || true
-codesign --force --deep --sign - --timestamp=none "$dest" >/dev/null
+# macOS 26 keeps Gatekeeper state beyond com.apple.quarantine xattr.
+# Open Anyway on the .pkg does not make OBS dlopen succeed. Rewrite onto
+# new inodes without copied xattrs, then ad-hoc sign.
+rewrite_unquarantined() {
+  local bundle="$1"
+  local parent name tmp
+  parent="$(dirname "$bundle")"
+  name="$(basename "$bundle")"
+  tmp="$(mktemp -d "${parent}/.${name}.XXXXXX")"
+  ditto --norsrc --noextattr --noacl "$bundle" "${tmp}/${name}"
+  rm -rf "$bundle"
+  mv "${tmp}/${name}" "$bundle"
+  rmdir "$tmp" 2>/dev/null || rm -rf "$tmp"
+
+  local f tmpf
+  while IFS= read -r -d '' f; do
+    tmpf="${f}.new.$$"
+    cp -X "$f" "$tmpf"
+    mv -f "$tmpf" "$f"
+  done < <(find "$bundle" -type f -print0)
+
+  xattr -cr "$bundle" >/dev/null 2>&1 || true
+  codesign --force --deep --sign - --timestamp=none "$bundle" >/dev/null
+}
+
+rewrite_unquarantined "$dest"
 
 if [[ "$(id -u)" -eq 0 && -n "${console_user:-}" && "$console_user" != "root" ]]; then
   chown -R "${console_user}:staff" "$dest" || true

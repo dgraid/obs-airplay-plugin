@@ -10,7 +10,7 @@ Not an official OBS Project plugin. Not affiliated with Apple or Zoom.
 
 macOS 13+ · arm64 · OBS Studio **32.2.2**
 
-**Download (macOS Apple Silicon):** [obs-airplay-0.2.3-macos-arm64.pkg](https://github.com/dgraid/obs-airplay-plugin/releases/latest/download/obs-airplay-0.2.3-macos-arm64.pkg)
+**Download (macOS Apple Silicon):** [obs-airplay-0.2.4-macos-arm64.pkg](https://github.com/dgraid/obs-airplay-plugin/releases/latest/download/obs-airplay-0.2.4-macos-arm64.pkg)
 
 ![Waiting screen in OBS](docs/images/02-idle-stub.png)
 
@@ -31,7 +31,7 @@ macOS 13+ · arm64 · OBS Studio **32.2.2**
 
 OBS may stay open. The installer finishes and offers a restart so OBS loads the new plugin. Restart is optional.
 
-**Installer:** double-click [obs-airplay-0.2.3-macos-arm64.pkg](https://github.com/dgraid/obs-airplay-plugin/releases/latest/download/obs-airplay-0.2.3-macos-arm64.pkg) (also on [Releases](https://github.com/dgraid/obs-airplay-plugin/releases)). No admin password. Payload:
+**Installer:** double-click [obs-airplay-0.2.4-macos-arm64.pkg](https://github.com/dgraid/obs-airplay-plugin/releases/latest/download/obs-airplay-0.2.4-macos-arm64.pkg) (also on [Releases](https://github.com/dgraid/obs-airplay-plugin/releases)). No admin password. Payload:
 
 `~/Library/Application Support/obs-studio/plugins/obs-airplay.plugin`
 
@@ -40,7 +40,7 @@ Does **not** write into `/Applications/OBS.app`.
 From this tree:
 
 ```bash
-./scripts/package_pkg.sh   # → dist/obs-airplay-0.2.3-macos-arm64.pkg
+./scripts/package_pkg.sh   # → dist/obs-airplay-0.2.4-macos-arm64.pkg
 ./scripts/install.sh
 ```
 
@@ -52,6 +52,8 @@ There is no Apple Developer ID, so the `.pkg` is **not notarized**. After a down
 2. System Settings → Privacy & Security → **Open Anyway**
 
 AirDrop/USB often skip that prompt.
+
+If OBS still says the plugin failed to load after Open Anyway: this version’s installer rewrites the bundle onto a new inode (macOS 26 keeps Gatekeeper state after `xattr`). Reinstall **0.2.4**, then restart OBS. Homebrew / FFmpeg on the target Mac is not required.
 
 ### Uninstall
 

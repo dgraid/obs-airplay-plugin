@@ -4,6 +4,7 @@ Canonical architecture write-up: `docs/ARCHITECTURE_DECISION.md`.
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-09-22 | postinstall rewrites plugin onto a new inode | macOS 26 keeps Gatekeeper state beyond `xattr`. GitHub `.pkg` + Open Anyway still left OBS unable to `dlopen` ad-hoc plugins. `ditto --norsrc --noextattr --noacl` + `cp -X` + ad-hoc sign. Notarize still needs a Developer ID. Homebrew is not a load dependency. |
 | 2026-09-07 | `.pkg` installs while OBS is running; restart is optional | Aborting preinstall if OBS is open made the installer look broken. Payload still overwrites `~/Library/.../plugins`. OBS keeps the old dylib until relaunch — postinstall offers Restart, default Later. Do not force-quit. arm64 check stays a hard fail. |
 | 2026-09-07 | Debounce `video_pause` 100ms | Stop Mirroring sends `0x56` then closes TCP. Treating that as Paused flashed the lock stub and started a second morph. If `conn_destroy` wins the race, it is disconnect. Real lock has no close, so Paused still fires. |
 | 2026-09-07 | Feature bit 27 off; persistent pairing key per source | UxPlay 1.65: bit 27 ON makes iOS run pair-setup (~5s). We are single-client; skip it. Ed25519 `pk` lived in `/tmp/obs-airplay-<pid>.key` and was unlinked on exit, so Mac treated every OBS launch as a new Apple TV (mirror/extend dialog again). Key file: `plugin_config/obs-airplay/keys/<source-uuid>.pem`. Do not change UxPlay `AIRPLAY_PI`. |

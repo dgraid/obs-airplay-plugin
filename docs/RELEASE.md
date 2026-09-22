@@ -24,13 +24,13 @@ A commit that is already on `origin/master` without a new tag/asset is **not** s
 ## GitHub (only after explicit «Отгрузи на гитхаб» / «пуш»)
 
 ```bash
-git tag -a 0.2.3 -m "0.2.3"
+git tag -a 0.2.4 -m "0.2.4"
 git push origin master
-git push origin 0.2.3
-gh release create 0.2.3 \
-  dist/obs-airplay-0.2.3-macos-arm64.pkg \
-  dist/obs-airplay-0.2.3-macos-arm64.pkg.sha256 \
-  --title "0.2.3 — AirPlay Receiver for OBS (macOS Apple Silicon)" \
+git push origin 0.2.4
+gh release create 0.2.4 \
+  dist/obs-airplay-0.2.4-macos-arm64.pkg \
+  dist/obs-airplay-0.2.4-macos-arm64.pkg.sha256 \
+  --title "0.2.4 — AirPlay Receiver for OBS (macOS Apple Silicon)" \
   --notes-file docs/CHANGELOG.md
 ```
 

@@ -1,5 +1,10 @@
 # Changelog vs mika314/obs-airplay
 
+## 0.2.4 (load on another Mac)
+
+- `.pkg` postinstall rewrites the bundle onto a new inode without xattrs, then ad-hoc signs. macOS 26 keeps Gatekeeper state after Open Anyway on the installer; OBS listed `obs-airplay` as failed to load. FFmpeg stays inside the helper — Homebrew is not required on the target Mac.
+- Breaking: no.
+
 ## 0.2.3 (connect, stop morph, installer)
 
 - Faster first connect: feature bit 27 off, persistent pairing key per source.
